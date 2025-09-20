@@ -1,0 +1,46 @@
+# Node.js dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+.astro/
+.vite/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Client specific (React/Next)
+Client/node_modules/
+Client/.next/
+Client/build/
+Client/out/
+
+# Server specific (Node/Express)
+Server/node_modules/
+Server/dist/
+Server/build/
+
+# Coverage reports
+coverage/
