@@ -1,37 +1,48 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useUserStore } from '@/lib/store/userStore';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useUserStore } from "@/lib/store/userStore";
+import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const router = useRouter();
-  const { login, isLoading } = useUserStore();
+  const { login, isLoading, user } = useUserStore();
+
+  // Add useEffect to handle redirect after successful login
+  useEffect(() => {
+    console.log("user after login", user);
+    if (user) {
+      if (user.role === "supplier") {
+        router.push("/supplier-dashboard");
+      } else {
+        router.push("/");
+      }
+    }
+  }, [user, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!identifier || !password) {
-      setError('Please enter both email/username and password');
+      setError("Please enter both email/username and password");
       return;
     }
 
     try {
       const result = await login({ identifier, password });
       if (!result.success) {
-        setError(result.error || 'Login failed');
-      } else {
-        router.push('/');
+        setError(result.error || "Login failed");
       }
+      // The redirect will be handled by the useEffect above
     } catch (error) {
-      setError('An error occurred. Please try again.');
+      setError("An error occurred. Please try again.");
     }
   };
 
@@ -43,8 +54,11 @@ export default function LoginPage() {
             Sign in to your account
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Or{' '}
-            <Link href="/auth/signup" className="font-medium text-green-600 hover:text-green-500">
+            Or{" "}
+            <Link
+              href="/auth/signup"
+              className="font-medium text-green-600 hover:text-green-500"
+            >
               create a new account
             </Link>
           </p>
@@ -59,7 +73,10 @@ export default function LoginPage() {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="identifier" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="identifier"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Email or Username
               </label>
               <input
@@ -73,16 +90,19 @@ export default function LoginPage() {
                 placeholder="Enter your email or username"
               />
             </div>
-            
+
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700"
+              >
                 Password
               </label>
               <div className="mt-1 relative">
                 <input
                   id="password"
                   name="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -110,7 +130,7 @@ export default function LoginPage() {
               disabled={isLoading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
             >
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? "Signing in..." : "Sign in"}
             </button>
           </div>
         </form>
