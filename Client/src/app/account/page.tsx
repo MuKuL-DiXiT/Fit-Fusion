@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useUserStore } from '@/lib/store/userStore';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from "react";
+import { useUserStore } from "@/lib/store/userStore";
+import { useRouter } from "next/navigation";
 import {
   UserIcon,
   CogIcon,
@@ -11,66 +11,75 @@ import {
   BellIcon,
   ShieldCheckIcon,
   PencilIcon,
-} from '@heroicons/react/24/outline';
+} from "@heroicons/react/24/outline";
 
-type Tab = 'profile' | 'orders' | 'settings';
+type Tab = "profile" | "orders" | "settings";
 
 export default function AccountPage() {
   const { user, logout } = useUserStore();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [activeTab, setActiveTab] = useState<Tab>("profile");
   const [isEditing, setIsEditing] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  useEffect(() => {
+    if (!user && !isRedirecting) {
+      setIsRedirecting(true);
+      router.push("/auth/login");
+    }
+  }, [user, router, isRedirecting]);
 
   if (!user) {
-    router.push('/auth/login');
     return null;
   }
 
   const mockOrders = [
     {
-      id: '1',
-      date: '2024-01-15',
-      status: 'delivered',
+      id: "1",
+      date: "2024-01-15",
+      status: "delivered",
       total: 89.99,
       items: [
-        { name: 'Whey Protein Powder', quantity: 1, price: 49.99 },
-        { name: 'Resistance Bands Set', quantity: 1, price: 39.99 }
-      ]
+        { name: "Whey Protein Powder", quantity: 1, price: 49.99 },
+        { name: "Resistance Bands Set", quantity: 1, price: 39.99 },
+      ],
     },
     {
-      id: '2',
-      date: '2024-01-10',
-      status: 'shipped',
+      id: "2",
+      date: "2024-01-10",
+      status: "shipped",
       total: 159.97,
       items: [
-        { name: 'Smart Fitness Watch', quantity: 1, price: 129.99 },
-        { name: 'Yoga Mat Premium', quantity: 1, price: 29.98 }
-      ]
+        { name: "Smart Fitness Watch", quantity: 1, price: 129.99 },
+        { name: "Yoga Mat Premium", quantity: 1, price: 29.98 },
+      ],
     },
     {
-      id: '3',
-      date: '2024-01-05',
-      status: 'processing',
+      id: "3",
+      date: "2024-01-05",
+      status: "processing",
       total: 24.99,
-      items: [
-        { name: 'Organic Green Tea', quantity: 1, price: 24.99 }
-      ]
-    }
+      items: [{ name: "Organic Green Tea", quantity: 1, price: 24.99 }],
+    },
   ];
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'delivered': return 'bg-green-100 text-green-800';
-      case 'shipped': return 'bg-blue-100 text-blue-800';
-      case 'processing': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case "delivered":
+        return "bg-green-100 text-green-800";
+      case "shipped":
+        return "bg-blue-100 text-blue-800";
+      case "processing":
+        return "bg-yellow-100 text-yellow-800";
+      default:
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   const tabs = [
-    { id: 'profile' as Tab, name: 'Profile', icon: UserIcon },
-    { id: 'orders' as Tab, name: 'Orders', icon: ShoppingBagIcon },
-    { id: 'settings' as Tab, name: 'Settings', icon: CogIcon },
+    { id: "profile" as Tab, name: "Profile", icon: UserIcon },
+    { id: "orders" as Tab, name: "Orders", icon: ShoppingBagIcon },
+    { id: "settings" as Tab, name: "Settings", icon: CogIcon },
   ];
 
   return (
@@ -78,7 +87,9 @@ export default function AccountPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">My Account</h1>
-          <p className="text-gray-600 mt-2">Manage your account and view your order history</p>
+          <p className="text-gray-600 mt-2">
+            Manage your account and view your order history
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -90,20 +101,22 @@ export default function AccountPage() {
                   <UserIcon className="h-8 w-8 text-green-600" />
                 </div>
                 <div className="ml-4">
-                  <h3 className="text-lg font-medium text-gray-900">{user.name}</h3>
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {user.name}
+                  </h3>
                   <p className="text-sm text-gray-600">{user.email}</p>
                 </div>
               </div>
-              
+
               <nav className="space-y-2">
-                {tabs.map(tab => (
+                {tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       activeTab === tab.id
-                        ? 'bg-green-100 text-green-700'
-                        : 'text-gray-600 hover:bg-gray-100'
+                        ? "bg-green-100 text-green-700"
+                        : "text-gray-600 hover:bg-gray-100"
                     }`}
                   >
                     <tab.icon className="h-5 w-5 mr-3" />
@@ -116,7 +129,7 @@ export default function AccountPage() {
                 <button
                   onClick={() => {
                     logout();
-                    router.push('/');
+                    router.push("/");
                   }}
                   className="w-full text-left text-sm text-red-600 hover:text-red-700 font-medium"
                 >
@@ -128,17 +141,19 @@ export default function AccountPage() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
-            {activeTab === 'profile' && (
+            {activeTab === "profile" && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-semibold text-gray-900">Personal Information</h2>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Personal Information
+                    </h2>
                     <button
                       onClick={() => setIsEditing(!isEditing)}
                       className="flex items-center text-green-600 hover:text-green-700"
                     >
                       <PencilIcon className="h-4 w-4 mr-1" />
-                      {isEditing ? 'Cancel' : 'Edit'}
+                      {isEditing ? "Cancel" : "Edit"}
                     </button>
                   </div>
 
@@ -220,7 +235,9 @@ export default function AccountPage() {
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">Fitness Goals</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                    Fitness Goals
+                  </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -272,18 +289,24 @@ export default function AccountPage() {
               </div>
             )}
 
-            {activeTab === 'orders' && (
+            {activeTab === "orders" && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">Order History</h2>
-                  
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                    Order History
+                  </h2>
+
                   {mockOrders.length === 0 ? (
                     <div className="text-center py-12">
                       <ShoppingBagIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
-                      <p className="text-gray-600 mb-4">Start shopping to see your orders here</p>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        No orders yet
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Start shopping to see your orders here
+                      </p>
                       <button
-                        onClick={() => router.push('/products')}
+                        onClick={() => router.push("/products")}
                         className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
                       >
                         Browse Products
@@ -291,29 +314,53 @@ export default function AccountPage() {
                     </div>
                   ) : (
                     <div className="space-y-6">
-                      {mockOrders.map(order => (
-                        <div key={order.id} className="border border-gray-200 rounded-lg p-6">
+                      {mockOrders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="border border-gray-200 rounded-lg p-6"
+                        >
                           <div className="flex justify-between items-start mb-4">
                             <div>
-                              <h3 className="text-lg font-medium text-gray-900">Order #{order.id}</h3>
-                              <p className="text-sm text-gray-600">Placed on {new Date(order.date).toLocaleDateString()}</p>
+                              <h3 className="text-lg font-medium text-gray-900">
+                                Order #{order.id}
+                              </h3>
+                              <p className="text-sm text-gray-600">
+                                Placed on{" "}
+                                {new Date(order.date).toLocaleDateString()}
+                              </p>
                             </div>
                             <div className="text-right">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                              <span
+                                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                                  order.status
+                                )}`}
+                              >
+                                {order.status.charAt(0).toUpperCase() +
+                                  order.status.slice(1)}
                               </span>
-                              <p className="text-lg font-semibold text-gray-900 mt-1">${order.total}</p>
+                              <p className="text-lg font-semibold text-gray-900 mt-1">
+                                ${order.total}
+                              </p>
                             </div>
                           </div>
 
                           <div className="space-y-3">
                             {order.items.map((item, index) => (
-                              <div key={index} className="flex justify-between items-center">
+                              <div
+                                key={index}
+                                className="flex justify-between items-center"
+                              >
                                 <div>
-                                  <span className="text-gray-900">{item.name}</span>
-                                  <span className="text-gray-600 ml-2">x{item.quantity}</span>
+                                  <span className="text-gray-900">
+                                    {item.name}
+                                  </span>
+                                  <span className="text-gray-600 ml-2">
+                                    x{item.quantity}
+                                  </span>
                                 </div>
-                                <span className="text-gray-900">${item.price}</span>
+                                <span className="text-gray-900">
+                                  ${item.price}
+                                </span>
                               </div>
                             ))}
                           </div>
@@ -322,7 +369,7 @@ export default function AccountPage() {
                             <button className="text-green-600 hover:text-green-700 text-sm font-medium">
                               View Details
                             </button>
-                            {order.status === 'delivered' && (
+                            {order.status === "delivered" && (
                               <button className="text-green-600 hover:text-green-700 text-sm font-medium">
                                 Buy Again
                               </button>
@@ -336,22 +383,32 @@ export default function AccountPage() {
               </div>
             )}
 
-            {activeTab === 'settings' && (
+            {activeTab === "settings" && (
               <div className="space-y-6">
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">Account Settings</h2>
-                  
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                    Account Settings
+                  </h2>
+
                   <div className="space-y-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
                         <BellIcon className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
-                          <p className="text-sm text-gray-600">Receive updates about your orders and diet plans</p>
+                          <h3 className="text-sm font-medium text-gray-900">
+                            Email Notifications
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Receive updates about your orders and diet plans
+                          </p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" defaultChecked className="sr-only peer" />
+                        <input
+                          type="checkbox"
+                          defaultChecked
+                          className="sr-only peer"
+                        />
                         <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                       </label>
                     </div>
@@ -360,8 +417,12 @@ export default function AccountPage() {
                       <div className="flex items-center">
                         <HeartIcon className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <h3 className="text-sm font-medium text-gray-900">Marketing Emails</h3>
-                          <p className="text-sm text-gray-600">Receive tips and product recommendations</p>
+                          <h3 className="text-sm font-medium text-gray-900">
+                            Marketing Emails
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Receive tips and product recommendations
+                          </p>
                         </div>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
@@ -374,8 +435,12 @@ export default function AccountPage() {
                       <div className="flex items-center">
                         <ShieldCheckIcon className="h-5 w-5 text-gray-400 mr-3" />
                         <div>
-                          <h3 className="text-sm font-medium text-gray-900">Two-Factor Authentication</h3>
-                          <p className="text-sm text-gray-600">Add an extra layer of security to your account</p>
+                          <h3 className="text-sm font-medium text-gray-900">
+                            Two-Factor Authentication
+                          </h3>
+                          <p className="text-sm text-gray-600">
+                            Add an extra layer of security to your account
+                          </p>
                         </div>
                       </div>
                       <button className="text-green-600 hover:text-green-700 text-sm font-medium">
@@ -386,22 +451,36 @@ export default function AccountPage() {
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">Privacy & Security</h2>
-                  
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
+                    Privacy & Security
+                  </h2>
+
                   <div className="space-y-4">
                     <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <h3 className="text-sm font-medium text-gray-900">Change Password</h3>
-                      <p className="text-sm text-gray-600 mt-1">Update your account password</p>
+                      <h3 className="text-sm font-medium text-gray-900">
+                        Change Password
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Update your account password
+                      </p>
                     </button>
 
                     <button className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                      <h3 className="text-sm font-medium text-gray-900">Download Your Data</h3>
-                      <p className="text-sm text-gray-600 mt-1">Get a copy of your account data</p>
+                      <h3 className="text-sm font-medium text-gray-900">
+                        Download Your Data
+                      </h3>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Get a copy of your account data
+                      </p>
                     </button>
 
                     <button className="w-full text-left p-4 border border-red-200 rounded-lg hover:bg-red-50 transition-colors">
-                      <h3 className="text-sm font-medium text-red-600">Delete Account</h3>
-                      <p className="text-sm text-red-500 mt-1">Permanently delete your account and all data</p>
+                      <h3 className="text-sm font-medium text-red-600">
+                        Delete Account
+                      </h3>
+                      <p className="text-sm text-red-500 mt-1">
+                        Permanently delete your account and all data
+                      </p>
                     </button>
                   </div>
                 </div>

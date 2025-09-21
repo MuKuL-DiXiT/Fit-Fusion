@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
-import { useUserStore } from '@/lib/store/userStore';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { useUserStore } from "@/lib/store/userStore";
 import {
   UserIcon,
   ShoppingCartIcon,
@@ -14,8 +14,9 @@ import {
   DocumentTextIcon,
   Bars3Icon,
   XMarkIcon,
-} from '@heroicons/react/24/outline';
-import { clsx } from 'clsx';
+  ChartPieIcon,
+} from "@heroicons/react/24/outline";
+import { clsx } from "clsx";
 
 export default function Navigation() {
   const pathname = usePathname();
@@ -24,20 +25,38 @@ export default function Navigation() {
 
   const cartItemsCount = cart.reduce((total, item) => total + item.quantity, 0);
 
+  // Check if user is a supplier
+  const isSupplier = user?.role === "supplier";
+
+  // Navigation items for regular users
   const publicNavItems = [
-    { name: 'Home', href: '/', icon: HomeIcon },
-    { name: 'Products', href: '/products', icon: MagnifyingGlassIcon },
-    { name: 'Health Tracker', href: '/health-tracker', icon: ChartBarIcon },
+    { name: "Home", href: "/", icon: HomeIcon },
+    { name: "Products", href: "/products", icon: MagnifyingGlassIcon },
+    { name: "Health Tracker", href: "/health-tracker", icon: ChartBarIcon },
   ];
 
   const authenticatedNavItems = [
-    { name: 'Home', href: '/', icon: HomeIcon },
-    { name: 'Products', href: '/products', icon: MagnifyingGlassIcon },
-    { name: 'Health Tracker', href: '/health-tracker', icon: ChartBarIcon },
-    { name: 'Diet Plans', href: '/diet-plans', icon: DocumentTextIcon },
+    { name: "Home", href: "/", icon: HomeIcon },
+    { name: "Products", href: "/products", icon: MagnifyingGlassIcon },
+    { name: "Health Tracker", href: "/health-tracker", icon: ChartBarIcon },
+    { name: "Diet Plans", href: "/diet-plans", icon: DocumentTextIcon },
   ];
 
-  const navItems = isAuthenticated ? authenticatedNavItems : publicNavItems;
+  // Navigation items for suppliers
+  const supplierNavItems = [
+    {
+      name: "Supplier Dashboard",
+      href: "/supplier-dashboard",
+      icon: ChartPieIcon,
+    },
+  ];
+
+  // Determine which navigation items to show
+  const navItems = isAuthenticated
+    ? isSupplier
+      ? supplierNavItems
+      : authenticatedNavItems
+    : publicNavItems;
 
   const handleLogout = async () => {
     await logout();
@@ -49,7 +68,10 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
+          <Link
+            href={isSupplier ? "/supplier-dashboard" : "/"}
+            className="flex items-center space-x-2"
+          >
             <HeartIcon className="h-8 w-8 text-green-600" />
             <span className="text-xl font-bold text-gray-900">FitFusion</span>
           </Link>
@@ -61,10 +83,10 @@ export default function Navigation() {
                 key={item.name}
                 href={item.href}
                 className={clsx(
-                  'flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  "flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                   pathname === item.href
-                    ? 'text-green-600 bg-green-50'
-                    : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                    ? "text-green-600 bg-green-50"
+                    : "text-gray-700 hover:text-green-600 hover:bg-green-50"
                 )}
               >
                 <item.icon className="h-4 w-4" />
@@ -77,25 +99,27 @@ export default function Navigation() {
           <div className="hidden md:flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                {/* Cart */}
-                <Link
-                  href="/cart"
-                  className="relative flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-green-600 hover:bg-green-50 transition-colors"
-                >
-                  <ShoppingCartIcon className="h-5 w-5" />
-                  <span>Cart</span>
-                  {cartItemsCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-green-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {cartItemsCount}
-                    </span>
-                  )}
-                </Link>
+                {/* Show cart only for regular users, not suppliers */}
+                {!isSupplier && (
+                  <Link
+                    href="/cart"
+                    className="relative flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-green-600 hover:bg-green-50 transition-colors"
+                  >
+                    <ShoppingCartIcon className="h-5 w-5" />
+                    <span>Cart</span>
+                    {cartItemsCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-green-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {cartItemsCount}
+                      </span>
+                    )}
+                  </Link>
+                )}
 
                 {/* Account Dropdown */}
                 <div className="relative group">
                   <button className="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-green-600 hover:bg-green-50 transition-colors">
                     <UserIcon className="h-5 w-5" />
-                    <span>{user?.username || 'Account'}</span>
+                    <span>{user?.username || "Account"}</span>
                   </button>
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                     <div className="py-1">
@@ -105,12 +129,14 @@ export default function Navigation() {
                       >
                         Account Details
                       </Link>
-                      <Link
-                        href="/account/orders"
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600"
-                      >
-                        Orders
-                      </Link>
+                      {!isSupplier && (
+                        <Link
+                          href="/account/orders"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600"
+                        >
+                          Orders
+                        </Link>
+                      )}
                       <button
                         onClick={handleLogout}
                         className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-red-50 hover:text-red-600"
@@ -165,10 +191,10 @@ export default function Navigation() {
                 href={item.href}
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={clsx(
-                  'flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium',
+                  "flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium",
                   pathname === item.href
-                    ? 'text-green-600 bg-green-50'
-                    : 'text-gray-700 hover:text-green-600 hover:bg-green-50'
+                    ? "text-green-600 bg-green-50"
+                    : "text-gray-700 hover:text-green-600 hover:bg-green-50"
                 )}
               >
                 <item.icon className="h-5 w-5" />
@@ -178,14 +204,18 @@ export default function Navigation() {
 
             {isAuthenticated ? (
               <>
-                <Link
-                  href="/cart"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-green-600 hover:bg-green-50"
-                >
-                  <ShoppingCartIcon className="h-5 w-5" />
-                  <span>Cart ({cartItemsCount})</span>
-                </Link>
+                {/* Show cart only for regular users, not suppliers */}
+                {!isSupplier && (
+                  <Link
+                    href="/cart"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-green-600 hover:bg-green-50"
+                  >
+                    <ShoppingCartIcon className="h-5 w-5" />
+                    <span>Cart ({cartItemsCount})</span>
+                  </Link>
+                )}
+
                 <Link
                   href="/account"
                   onClick={() => setIsMobileMenuOpen(false)}
