@@ -12,8 +12,8 @@ router.get("/", authenticateToken, async (req, res) => {
       `SELECT dp.*, 
               COUNT(dpi.item_id) as item_count,
               SUM(dpi.calories) as total_calories
-       FROM Diet_Plans dp
-       LEFT JOIN Diet_Plan_Items dpi ON dp.plan_id = dpi.plan_id
+       FROM diet_plans dp
+       LEFT JOIN diet_plan_items dpi ON dp.plan_id = dpi.plan_id
        WHERE dp.user_id = $1
        GROUP BY dp.plan_id
        ORDER BY dp.created_at DESC`,
@@ -42,8 +42,8 @@ router.get("/recent", authenticateToken, async (req, res) => {
       `SELECT dp.*, 
               COUNT(dpi.item_id) as item_count,
               SUM(dpi.calories) as total_calories
-       FROM Diet_Plans dp
-       LEFT JOIN Diet_Plan_Items dpi ON dp.plan_id = dpi.plan_id
+       FROM diet_plans dp
+       LEFT JOIN diet_plan_items dpi ON dp.plan_id = dpi.plan_id
        WHERE dp.user_id = $1
        GROUP BY dp.plan_id
        ORDER BY dp.created_at DESC
@@ -72,7 +72,7 @@ router.get("/:planId", authenticateToken, async (req, res) => {
 
     // Get diet plan
     const planResult = await pool.query(
-      "SELECT * FROM Diet_Plans WHERE plan_id = $1 AND user_id = $2",
+      "SELECT * FROM diet_plans WHERE plan_id = $1 AND user_id = $2",
       [planId, userId]
     );
 
@@ -87,9 +87,9 @@ router.get("/:planId", authenticateToken, async (req, res) => {
     const itemsResult = await pool.query(
       `SELECT dpi.*, f.food_name, f.calories_per_100g, f.protein_per_100g, 
               f.carbs_per_100g, f.fats_per_100g, p.product_name
-       FROM Diet_Plan_Items dpi
-       LEFT JOIN Food f ON dpi.food_id = f.food_id
-       LEFT JOIN Products p ON dpi.product_id = p.product_id
+       FROM diet_plan_items dpi
+       LEFT JOIN food f ON dpi.food_id = f.food_id
+       LEFT JOIN products p ON dpi.product_id = p.product_id
        WHERE dpi.plan_id = $1
        ORDER BY dpi.meal_time, dpi.item_id`,
       [planId]
@@ -113,7 +113,7 @@ router.get("/:planId", authenticateToken, async (req, res) => {
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { planName, startDate, endDate, items } = req.body;
+    const { planName, startDate, endDate, items, foods } = req.body;
 
     if (!planName) {
       return res.status(400).json({
@@ -127,9 +127,41 @@ router.post("/", authenticateToken, async (req, res) => {
     try {
       await client.query("BEGIN");
 
+      // First, process foods and add them to the food table if they don't exist
+      const foodIdMap = {};
+      if (foods && foods.length > 0) {
+        for (const food of foods) {
+          // Check if food already exists
+          const existingFood = await client.query(
+            "SELECT food_id FROM food WHERE food_name = $1",
+            [food.food_name]
+          );
+
+          let foodId;
+          if (existingFood.rows.length > 0) {
+            // Food exists, use existing ID
+            foodId = existingFood.rows[0].food_id;
+          } else {
+            // Food doesn't exist, create new food entry
+            const newFood = await client.query(
+              "INSERT INTO food (food_name, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g) VALUES ($1, $2, $3, $4, $5) RETURNING food_id",
+              [
+                food.food_name,
+                food.calories_per_100g,
+                food.protein_per_100g || 0,
+                food.carbs_per_100g || 0,
+                food.fats_per_100g || 0
+              ]
+            );
+            foodId = newFood.rows[0].food_id;
+          }
+          foodIdMap[food.food_name] = foodId;
+        }
+      }
+
       // Create diet plan
       const planResult = await client.query(
-        "INSERT INTO Diet_Plans (user_id, plan_name, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *",
+        "INSERT INTO diet_plans (user_id, plan_name, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *",
         [userId, planName, startDate || null, endDate || null]
       );
 
@@ -138,11 +170,17 @@ router.post("/", authenticateToken, async (req, res) => {
       // Add diet plan items if provided
       if (items && items.length > 0) {
         for (const item of items) {
+          // Get food_id from our map if food_name is provided
+          let foodId = item.food_id;
+          if (item.food_name && foodIdMap[item.food_name]) {
+            foodId = foodIdMap[item.food_name];
+          }
+
           await client.query(
-            "INSERT INTO Diet_Plan_Items (plan_id, food_id, product_id, meal_time, quantity, calories) VALUES ($1, $2, $3, $4, $5, $6)",
+            "INSERT INTO diet_plan_items (plan_id, food_id, product_id, meal_time, quantity, calories) VALUES ($1, $2, $3, $4, $5, $6)",
             [
               planId,
-              item.food_id || null,
+              foodId || null,
               item.product_id || null,
               item.meal_time,
               item.quantity,
@@ -182,7 +220,7 @@ router.put("/:planId", authenticateToken, async (req, res) => {
     const { planName, startDate, endDate } = req.body;
 
     const result = await pool.query(
-      "UPDATE Diet_Plans SET plan_name = $1, start_date = $2, end_date = $3 WHERE plan_id = $4 AND user_id = $5 RETURNING *",
+      "UPDATE diet_plans SET plan_name = $1, start_date = $2, end_date = $3 WHERE plan_id = $4 AND user_id = $5 RETURNING *",
       [planName, startDate || null, endDate || null, planId, userId]
     );
 
@@ -214,7 +252,7 @@ router.delete("/:planId", authenticateToken, async (req, res) => {
     const planId = req.params.planId;
 
     const result = await pool.query(
-      "DELETE FROM Diet_Plans WHERE plan_id = $1 AND user_id = $2 RETURNING *",
+      "DELETE FROM diet_plans WHERE plan_id = $1 AND user_id = $2 RETURNING *",
       [planId, userId]
     );
 
@@ -247,7 +285,7 @@ router.post("/:planId/items", authenticateToken, async (req, res) => {
 
     // Verify plan belongs to user
     const planCheck = await pool.query(
-      "SELECT plan_id FROM Diet_Plans WHERE plan_id = $1 AND user_id = $2",
+      "SELECT plan_id FROM diet_plans WHERE plan_id = $1 AND user_id = $2",
       [planId, userId]
     );
 
@@ -259,7 +297,7 @@ router.post("/:planId/items", authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      "INSERT INTO Diet_Plan_Items (plan_id, food_id, product_id, meal_time, quantity, calories) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      "INSERT INTO diet_plan_items (plan_id, food_id, product_id, meal_time, quantity, calories) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [
         planId,
         food_id || null,
@@ -293,7 +331,7 @@ router.delete("/:planId/items/:itemId", authenticateToken, async (req, res) => {
 
     // Verify plan belongs to user
     const planCheck = await pool.query(
-      "SELECT plan_id FROM Diet_Plans WHERE plan_id = $1 AND user_id = $2",
+      "SELECT plan_id FROM diet_plans WHERE plan_id = $1 AND user_id = $2",
       [planId, userId]
     );
 
@@ -305,7 +343,7 @@ router.delete("/:planId/items/:itemId", authenticateToken, async (req, res) => {
     }
 
     const result = await pool.query(
-      "DELETE FROM Diet_Plan_Items WHERE item_id = $1 AND plan_id = $2 RETURNING *",
+      "DELETE FROM diet_plan_items WHERE item_id = $1 AND plan_id = $2 RETURNING *",
       [itemId, planId]
     );
 
@@ -329,83 +367,7 @@ router.delete("/:planId/items/:itemId", authenticateToken, async (req, res) => {
   }
 });
 
-// Generate AI diet plan (placeholder for future AI integration)
-router.post("/generate-ai", authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const { goals, dietType, restrictions, targetCalories } = req.body;
-
-    // This is a placeholder for AI integration
-    // In the future, this would integrate with an AI service like Gemini
-
-    // For now, create a sample plan
-    const samplePlan = {
-      planName: `AI Generated Plan - ${new Date().toLocaleDateString()}`,
-      startDate: new Date().toISOString().split("T")[0],
-      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0],
-      items: [
-        {
-          meal_time: "Breakfast",
-          food_id: 1, // Sample food ID
-          quantity: 100,
-          calories: 300,
-        },
-        {
-          meal_time: "Lunch",
-          food_id: 2, // Sample food ID
-          quantity: 150,
-          calories: 450,
-        },
-        {
-          meal_time: "Dinner",
-          food_id: 3, // Sample food ID
-          quantity: 200,
-          calories: 500,
-        },
-      ],
-    };
-
-    // Create the plan using the existing create logic
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-
-      const planResult = await client.query(
-        "INSERT INTO Diet_Plans (user_id, plan_name, start_date, end_date) VALUES ($1, $2, $3, $4) RETURNING *",
-        [userId, samplePlan.planName, samplePlan.startDate, samplePlan.endDate]
-      );
-
-      const planId = planResult.rows[0].plan_id;
-
-      for (const item of samplePlan.items) {
-        await client.query(
-          "INSERT INTO Diet_Plan_Items (plan_id, food_id, meal_time, quantity, calories) VALUES ($1, $2, $3, $4, $5)",
-          [planId, item.food_id, item.meal_time, item.quantity, item.calories]
-        );
-      }
-
-      await client.query("COMMIT");
-
-      res.status(201).json({
-        success: true,
-        message: "AI diet plan generated successfully",
-        plan: planResult.rows[0],
-      });
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  } catch (error) {
-    console.error("Error generating AI diet plan:", error);
-    res.status(500).json({
-      success: false,
-      message: "Error generating AI diet plan",
-    });
-  }
-});
+// AI Diet Plan generation is now handled on the frontend using Gemini API directly
+// This avoids backend complexity and API key management issues
 
 module.exports = router;

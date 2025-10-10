@@ -18,10 +18,14 @@ app.use(cookieParser());
 const authRoutes = require("./routes/auth");
 const healthRoutes = require("./routes/health");
 const dietPlanRoutes = require("./routes/dietPlans");
+const productRoutes = require("./routes/products");
+const orderRoutes = require("./routes/orders");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/diet-plans", dietPlanRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/orders", orderRoutes);
 
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "OK" });

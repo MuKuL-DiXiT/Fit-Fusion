@@ -23,7 +23,7 @@ export default function Navigation() {
   const { isAuthenticated, user, cart, logout } = useUserStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const cartItemsCount = cart.reduce((total, item) => total + item.quantity, 0);
+  const cartItemsCount = cart?.length || 0;
 
   // Check if user is a supplier
   const isSupplier = user?.role === "supplier";

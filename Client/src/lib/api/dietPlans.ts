@@ -27,11 +27,20 @@ export interface DietPlanItem {
   fats_per_100g?: number;
 }
 
+export interface FoodData {
+  food_name: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+}
+
 export interface CreateDietPlanData {
   planName: string;
   startDate?: string;
   endDate?: string;
   items?: Omit<DietPlanItem, 'item_id' | 'plan_id'>[];
+  foods?: FoodData[];
 }
 
 export interface AIGenerationData {
@@ -42,9 +51,11 @@ export interface AIGenerationData {
 }
 
 class DietPlanService {
+  private baseUrl = 'http://localhost:3001';
+
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',

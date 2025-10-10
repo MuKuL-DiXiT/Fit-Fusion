@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useUserStore } from '@/lib/store/userStore';
 import { dietPlanService, type DietPlan } from '@/lib/api/dietPlans';
+import { generateSuggestions } from '@/lib/gemini';
 import {
   ScaleIcon,
   HeartIcon,
@@ -48,22 +49,136 @@ export default function Home() {
   const generateAIPlan = async () => {
     setAiPlanLoading(true);
     try {
-      const response = await dietPlanService.generateAIPlan({
-        goals: 'weight_loss',
-        dietType: 'balanced'
-      });
+      const userGoals = 'weight loss'; // You can make this dynamic based on user input
+      const dietPreference = 'balanced'; // You can make this dynamic based on user input
       
-      if (response.success) {
-        alert('AI Diet Plan generated successfully!');
-        fetchRecentPlans(); // Refresh the recent plans
+      const prompt = `You are a nutrition expert. Create a 7-day diet plan for ${userGoals} with ${dietPreference} nutrition.
+
+CRITICAL: Return ONLY valid JSON without markdown blocks. Use this EXACT structure:
+
+{
+  "planName": "7-Day Weight Loss Plan",
+  "description": "Personalized nutrition plan for weight loss",
+  "targetCalories": 1800,
+  "foods": [
+    {"food_name": "Steel-cut oats", "calories_per_100g": 379, "protein_per_100g": 13.2, "carbs_per_100g": 67.7, "fats_per_100g": 6.5},
+    {"food_name": "Fresh blueberries", "calories_per_100g": 57, "protein_per_100g": 0.7, "carbs_per_100g": 14.5, "fats_per_100g": 0.3},
+    {"food_name": "Grilled chicken breast", "calories_per_100g": 165, "protein_per_100g": 31.0, "carbs_per_100g": 0.0, "fats_per_100g": 3.6},
+    {"food_name": "Brown rice", "calories_per_100g": 123, "protein_per_100g": 2.6, "carbs_per_100g": 23.0, "fats_per_100g": 0.9},
+    {"food_name": "Greek yogurt plain", "calories_per_100g": 59, "protein_per_100g": 10.0, "carbs_per_100g": 3.6, "fats_per_100g": 0.4}
+  ],
+  "dailyMeals": [
+    {
+      "day": 1,
+      "breakfast": [
+        {"food_name": "Steel-cut oats", "quantity_grams": 80},
+        {"food_name": "Fresh blueberries", "quantity_grams": 75}
+      ],
+      "lunch": [
+        {"food_name": "Grilled chicken breast", "quantity_grams": 120},
+        {"food_name": "Brown rice", "quantity_grams": 80}
+      ],
+      "snack": [
+        {"food_name": "Greek yogurt plain", "quantity_grams": 150}
+      ],
+      "dinner": [
+        {"food_name": "Grilled chicken breast", "quantity_grams": 100},
+        {"food_name": "Steamed broccoli", "quantity_grams": 150}
+      ]
+    }
+  ]
+}
+
+Generate 7 days (day 1-7), include 15-20 different real foods in the "foods" array with accurate nutrition data per 100g. Each meal should have 1-3 food items with specific gram quantities. Return only the JSON.`;
+
+      const aiResponse = await generateSuggestions(prompt);
+      
+      if (aiResponse && aiResponse.planName && aiResponse.dailyMeals && aiResponse.foods) {
+        // Show the generated plan and ask if user wants to save it
+        const saveToDatabase = confirm(`✅ AI Diet Plan "${aiResponse.planName}" generated successfully!\n\n📊 ${aiResponse.dailyMeals.length} days of personalized nutrition\n🍎 ${aiResponse.foods.length} unique foods with complete nutritional data\n🎯 Target: ${aiResponse.targetCalories || 1800} calories/day\n\n💾 Would you like to save this plan to your account?`);
+        
+        if (saveToDatabase) {
+          await saveDietPlanToDatabase(aiResponse);
+        } else {
+          console.log('Generated AI Plan (not saved):', aiResponse);
+          alert('Plan generated! You can view it in the console or generate a new one anytime.');
+        }
       } else {
-        alert('Failed to generate AI plan: ' + response.message);
+        alert('❌ AI plan generated but format is invalid. Please try again.');
+        console.log('Invalid AI Response:', aiResponse);
       }
     } catch (error) {
       console.error('Error generating AI plan:', error);
-      alert('Error generating AI plan. Please try again.');
+      alert('❌ Error generating AI plan: ' + (error instanceof Error ? error.message : 'Please check your internet connection and try again.'));
     } finally {
       setAiPlanLoading(false);
+    }
+  };
+
+  const saveDietPlanToDatabase = async (aiPlan: any) => {
+    try {
+      console.log('AI Plan received for saving:', aiPlan);
+      
+      // Create diet plan items from the AI response
+      const dietPlanItems: any[] = [];
+      
+      // Process each day's meals - handle the new format properly
+      aiPlan.dailyMeals.forEach((day: any) => {
+        // Each day has breakfast, lunch, snack, dinner arrays
+        const mealTypes = ['breakfast', 'lunch', 'snack', 'dinner'];
+        
+        mealTypes.forEach((mealType) => {
+          if (day[mealType] && Array.isArray(day[mealType])) {
+            day[mealType].forEach((foodItem: any) => {
+              // Find the corresponding food data
+              const foodData = aiPlan.foods.find((f: any) => f.food_name === foodItem.food_name);
+              if (foodData) {
+                // Calculate calories based on quantity and nutritional data
+                const calories = (foodData.calories_per_100g * foodItem.quantity_grams) / 100;
+                
+                dietPlanItems.push({
+                  food_name: foodItem.food_name,
+                  meal_time: mealType.charAt(0).toUpperCase() + mealType.slice(1), // Capitalize first letter
+                  quantity: foodItem.quantity_grams,
+                  calories: Math.round(calories * 100) / 100, // Round to 2 decimal places
+                });
+              } else {
+                console.warn(`Food data not found for: ${foodItem.food_name}`);
+              }
+            });
+          } else {
+            console.warn(`No ${mealType} data found for day ${day.day}`);
+          }
+        });
+      });
+
+      console.log('Processed diet plan items:', dietPlanItems);
+      console.log('Foods data:', aiPlan.foods);
+
+      if (dietPlanItems.length === 0) {
+        alert('❌ No valid meal items found in the AI response. Please try generating again.');
+        return;
+      }
+
+      // Create the diet plan with all the processed items
+      const planResponse = await dietPlanService.createPlan({
+        planName: aiPlan.planName,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date(Date.now() + (aiPlan.dailyMeals.length * 24 * 60 * 60 * 1000)).toISOString().split('T')[0],
+        items: dietPlanItems,
+        foods: aiPlan.foods // Include the foods data for backend processing
+      });
+
+      if (planResponse.success) {
+        alert(`✅ Diet plan "${aiPlan.planName}" saved successfully!\n\n📋 ${dietPlanItems.length} meal items saved\n🍎 ${aiPlan.foods.length} foods with nutritional data\n\n📋 Go to Diet Plans section to view your complete plan.`);
+        fetchRecentPlans(); // Refresh the recent plans display
+      } else {
+        alert('❌ Failed to save plan: ' + planResponse.message);
+        console.error('Plan save failed:', planResponse);
+      }
+    } catch (error) {
+      console.error('Error saving plan to database:', error);
+      alert('❌ Error saving plan. Please try again.');
     }
   };
 
@@ -222,13 +337,13 @@ export default function Home() {
         <div id="ai-plans" className="py-12 bg-gradient-to-br from-indigo-50 to-blue-50">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center">
-              <h2 className="text-base text-indigo-600 font-semibold tracking-wide uppercase">
+              <h2 className="text-base text-indigo-700 font-semibold tracking-wide uppercase">
                 AI-Powered Nutrition
               </h2>
               <p className="mt-2 text-3xl leading-8 font-extrabold tracking-tight text-gray-900 sm:text-4xl">
                 Smart Diet Plans
               </p>
-              <p className="mt-4 max-w-2xl text-xl text-gray-600 mx-auto">
+              <p className="mt-4 max-w-2xl text-xl text-gray-700 mx-auto">
                 Let our AI create personalized meal plans based on your goals, preferences, and dietary restrictions
               </p>
             </div>
@@ -244,19 +359,19 @@ export default function Home() {
                     Generate AI Diet Plan
                   </h3>
                 </div>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-800 mb-6">
                   Our advanced AI analyzes your profile, goals, and preferences to create a customized meal plan that fits your lifestyle.
                 </p>
                 <div className="space-y-4 mb-6">
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <SparklesIcon className="h-4 w-4 text-yellow-500 mr-2" />
                     Personalized to your goals
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <ClockIcon className="h-4 w-4 text-blue-500 mr-2" />
                     Generated in seconds
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <FireIcon className="h-4 w-4 text-red-500 mr-2" />
                     Optimized calorie distribution
                   </div>
@@ -280,19 +395,19 @@ export default function Home() {
                     Create Custom Plan
                   </h3>
                 </div>
-                <p className="text-gray-600 mb-6">
+                <p className="text-gray-800 mb-6">
                   Build your own diet plan from scratch with our comprehensive food database and meal planning tools.
                 </p>
                 <div className="space-y-4 mb-6">
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <DocumentTextIcon className="h-4 w-4 text-orange-500 mr-2" />
                     Choose from 1000+ foods
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <ChartBarIcon className="h-4 w-4 text-purple-500 mr-2" />
                     Track macros automatically
                   </div>
-                  <div className="flex items-center text-sm text-gray-600">
+                  <div className="flex items-center text-sm text-gray-800">
                     <HeartIcon className="h-4 w-4 text-red-500 mr-2" />
                     Save and reuse plans
                   </div>

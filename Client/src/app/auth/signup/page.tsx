@@ -15,7 +15,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("user");
+  const [role, setRole] = useState<string>("user");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -87,8 +87,8 @@ export default function SignupPage() {
                 onChange={(e) => setRole(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-black focus:outline-none focus:ring-green-500 focus:border-green-500"
               >
-                <option value="user">User</option>
-                <option value="supplier">Supplier</option>
+                <option value="user">user</option>
+                <option value="supplier">supplier</option>
               </select>
             </div>
             <div>
