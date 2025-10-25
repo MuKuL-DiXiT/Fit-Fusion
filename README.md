@@ -1,6 +1,6 @@
-# Project Title
+# Fit Fusion
 
-Short one-line description of the project.
+Integration of health tracking and e-commerce
 
 ## Table of Contents
 - [Project Overview](#project-overview)
@@ -10,7 +10,6 @@ Short one-line description of the project.
   - [Installation](#installation)
   - [Configuration / Environment Variables](#configuration--environment-variables)
   - [Running Locally](#running-locally)
-- [Usage](#usage)
 - [Development](#development)
   - [Project Structure](#project-structure)
   - [Coding Conventions](#coding-conventions)
@@ -24,12 +23,13 @@ Short one-line description of the project.
 - [Acknowledgements](#acknowledgements)
 
 ## Project Overview
-Explain what this project does, who it’s for, and the problem it solves. Provide context and any important background.
+ This project aims to make the lives of the users easier by providing them a single environment for tracking their diet goals, their exercise goals, and having a platform where they can buy the things which are related to their health and fitness
 
 ## Features
-- Feature 1
-- Feature 2
-- Feature 3
+- Make entries of diet taken and exercises done
+- nutritions and calories calculation and storage
+- health plans created using ai
+- Buy the products that you like and you need
 
 ## Getting Started
 
@@ -41,37 +41,18 @@ List required software and versions, e.g.:
 - Docker (optional)
 - Any external services (Postgres, Redis, etc.)
 
-### Installation
+### Installation and Contribution
 Step-by-step install instructions:
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/<owner>/<repo>.git
-   cd <repo>
-   ```
+1. Fork and Clone the repository:
 2. Install dependencies:
-   - For Node:
-     ```bash
-     npm install
-     # or
      yarn install
-     # or
-     pnpm install
-     ```
-   - For Python:
-     ```bash
-     python -m venv .venv
-     source .venv/bin/activate
-     pip install -r requirements.txt
-     ```
-
 ### Configuration / Environment Variables
-Describe required environment variables and sample .env file:
-
-Example `.env`:
+variables and sample .env file:
+`.env`:
 ```
 # .env
-PORT=3000
+PORT=3001
 DATABASE_URL=postgres://user:pass@localhost:5432/dbname
 JWT_SECRET=replace-this-with-a-secret
 NODE_ENV=development
@@ -83,28 +64,13 @@ Add explanation of each variable and where to obtain credentials (if any).
 How to start the app in development:
 - Node example:
   ```bash
-  npm run dev
-  ```
-- Docker compose example:
-  ```bash
-  docker-compose up --build
+  yarn dev
   ```
 
-## Usage
-Show examples of how to use the project:
-- API examples (curl / HTTP)
-- CLI examples
-- Screenshots (if UI project)
-
-API example:
-```bash
-curl -X GET "http://localhost:3000/api/health"
-```
 
 ## Development
 
 ### Project Structure
-Describe notable files and folders, e.g.:
 - src/ — source code
 - tests/ — unit and integration tests
 - scripts/ — helpful scripts
