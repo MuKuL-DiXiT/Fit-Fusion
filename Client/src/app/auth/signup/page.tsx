@@ -11,7 +11,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 export default function SignupPage() {
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState<string>("")
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,6 +30,12 @@ export default function SignupPage() {
       return;
     }
 
+    // Disallow spaces in password
+    if (password.includes(' ')) {
+      setError('Password must not contain spaces');
+      return;
+    }
+
     if (password.length < 6) {
       setError("Password must be at least 6 characters long");
       return;
@@ -43,8 +49,11 @@ export default function SignupPage() {
       } else {
         router.push("/");
       }
-    } catch (error: any) {
-      setError(error.message || "An error occurred. Please try again.");
+    } catch (errUnknown) {
+      let msg = 'An error occurred. Please try again.';
+      if (errUnknown instanceof Error) msg = errUnknown.message;
+      else if (typeof errUnknown === 'string') msg = errUnknown;
+      setError(msg);
     }
   };
 
@@ -156,9 +165,9 @@ export default function SignupPage() {
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeSlashIcon className="h-5 w-5 text-gray-400" />
+                    <EyeSlashIcon className="h-5 w-5 text-red-100" />
                   ) : (
-                    <EyeIcon className="h-5 w-5 text-gray-400" />
+                    <EyeIcon className="h-5 w-5 text-red-900" />
                   )}
                 </button>
               </div>

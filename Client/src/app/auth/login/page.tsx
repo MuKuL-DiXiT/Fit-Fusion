@@ -1,5 +1,4 @@
 "use client";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -40,7 +39,6 @@ export default function LoginPage() {
       if (!result.success) {
         setError(result.error || "Login failed");
       }
-      // The redirect will be handled by the useEffect above
     } catch (error) {
       setError("An error occurred. Please try again.");
     }
@@ -57,7 +55,7 @@ export default function LoginPage() {
             Or{" "}
             <Link
               href="/auth/signup"
-              className="font-medium text-green-600 hover:text-green-500"
+              className="font-medium text-teal-700 hover:text-teal-600"
             >
               create a new account
             </Link>
@@ -86,7 +84,7 @@ export default function LoginPage() {
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 text-black focus:outline-none focus:ring-green-500 focus:border-green-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 text-black focus:outline-none focus:ring-teal-600 focus:border-teal-600"
                 placeholder="Enter your email or username"
               />
             </div>
@@ -106,7 +104,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 text-black focus:outline-none focus:ring-green-500 focus:border-green-500"
+                  className="block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 text-black focus:outline-none focus:ring-teal-600 focus:border-teal-600"
                   placeholder="Enter your password"
                 />
                 <button
@@ -128,7 +126,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-700 hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-600 disabled:opacity-50"
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>

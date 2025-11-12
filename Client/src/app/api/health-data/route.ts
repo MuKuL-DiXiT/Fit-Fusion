@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   }
 
   if (type === 'food') {
-    // @ts-ignore
+  // @ts-expect-error allow dynamic lookup on mock data
     const data = mockFoodData[query.toLowerCase()] || {
       calories: Math.floor(Math.random() * 300) + 50,
       protein: Math.floor(Math.random() * 30),
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
   }
 
   if (type === 'exercise') {
-    // @ts-ignore
+  // @ts-expect-error allow dynamic lookup on mock data
     const data = mockExerciseData[query.toLowerCase()] || {
       calories: Math.floor(Math.random() * 400) + 100,
     };

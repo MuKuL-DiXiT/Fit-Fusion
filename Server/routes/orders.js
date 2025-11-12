@@ -3,12 +3,10 @@ const router = express.Router();
 const { pool } = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
 
-// Get user's cart (orders with status 'Cart')
 router.get('/cart', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    // Get or create cart
     let cartQuery = await pool.query(
       `SELECT * FROM orders WHERE user_id = $1 AND status = 'Cart'`,
       [userId]
@@ -16,7 +14,6 @@ router.get('/cart', authenticateToken, async (req, res) => {
 
     let cart;
     if (cartQuery.rows.length === 0) {
-      // Create new cart
       const newCart = await pool.query(
         `INSERT INTO orders (user_id, total_amount, status)
          VALUES ($1, 0, 'Cart')
@@ -28,7 +25,6 @@ router.get('/cart', authenticateToken, async (req, res) => {
       cart = cartQuery.rows[0];
     }
 
-    // Get cart items
     const itemsQuery = await pool.query(
       `SELECT oi.*, p.product_name, p.description, p.price as current_price
        FROM order_items oi
@@ -53,7 +49,6 @@ router.get('/cart', authenticateToken, async (req, res) => {
   }
 });
 
-// Add item to cart
 router.post('/cart/items', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -66,7 +61,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
       });
     }
 
-    // Get product details and check stock
     const productQuery = await pool.query(
       'SELECT * FROM products WHERE product_id = $1',
       [productId]
@@ -92,7 +86,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Get or create cart
       let cartQuery = await client.query(
         `SELECT * FROM orders WHERE user_id = $1 AND status = 'Cart'`,
         [userId]
@@ -111,7 +104,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
         cart = cartQuery.rows[0];
       }
 
-      // Check if item already exists in cart
       const existingItem = await client.query(
         `SELECT * FROM order_items WHERE order_id = $1 AND product_id = $2`,
         [cart.order_id, productId]
@@ -119,7 +111,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
 
       let updatedQuantity;
       if (existingItem.rows.length > 0) {
-        // Update existing item
         updatedQuantity = existingItem.rows[0].quantity + quantity;
         
         if (product.stock_quantity < updatedQuantity) {
@@ -131,7 +122,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
           [updatedQuantity, existingItem.rows[0].order_item_id]
         );
       } else {
-        // Add new item
         updatedQuantity = quantity;
         await client.query(
           `INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
@@ -140,7 +130,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
         );
       }
 
-      // Update cart total
       const totalQuery = await client.query(
         `SELECT SUM(oi.quantity * oi.price_at_purchase) as total
          FROM order_items oi
@@ -175,7 +164,6 @@ router.post('/cart/items', authenticateToken, async (req, res) => {
   }
 });
 
-// Update cart item quantity
 router.put('/cart/items/:itemId', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -193,7 +181,6 @@ router.put('/cart/items/:itemId', authenticateToken, async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Verify item belongs to user's cart
       const itemQuery = await client.query(
         `SELECT oi.*, o.user_id, p.stock_quantity
          FROM order_items oi
@@ -219,13 +206,11 @@ router.put('/cart/items/:itemId', authenticateToken, async (req, res) => {
         });
       }
 
-      // Update item quantity
       await client.query(
         `UPDATE order_items SET quantity = $1 WHERE order_item_id = $2`,
         [quantity, itemId]
       );
 
-      // Update cart total
       const totalQuery = await client.query(
         `SELECT SUM(oi.quantity * oi.price_at_purchase) as total
          FROM order_items oi
@@ -260,7 +245,6 @@ router.put('/cart/items/:itemId', authenticateToken, async (req, res) => {
   }
 });
 
-// Remove item from cart
 router.delete('/cart/items/:itemId', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -270,7 +254,6 @@ router.delete('/cart/items/:itemId', authenticateToken, async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Verify item belongs to user's cart
       const itemQuery = await client.query(
         `SELECT oi.*, o.user_id
          FROM order_items oi
@@ -288,13 +271,11 @@ router.delete('/cart/items/:itemId', authenticateToken, async (req, res) => {
 
       const item = itemQuery.rows[0];
 
-      // Remove item
       await client.query(
         `DELETE FROM order_items WHERE order_item_id = $1`,
         [itemId]
       );
 
-      // Update cart total
       const totalQuery = await client.query(
         `SELECT SUM(oi.quantity * oi.price_at_purchase) as total
          FROM order_items oi
@@ -329,7 +310,6 @@ router.delete('/cart/items/:itemId', authenticateToken, async (req, res) => {
   }
 });
 
-// Place order (convert cart to pending order)
 router.post('/place-order', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -346,7 +326,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
     try {
       await client.query('BEGIN');
 
-      // Get user's cart
       const cartQuery = await client.query(
         `SELECT * FROM orders WHERE user_id = $1 AND status = 'Cart'`,
         [userId]
@@ -361,7 +340,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
 
       const cart = cartQuery.rows[0];
 
-      // Get cart items
       const itemsQuery = await client.query(
         `SELECT oi.*, p.stock_quantity
          FROM order_items oi
@@ -377,7 +355,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
         });
       }
 
-      // Check stock for all items
       for (const item of itemsQuery.rows) {
         if (item.stock_quantity < item.quantity) {
           return res.status(400).json({
@@ -387,7 +364,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
         }
       }
 
-      // Update stock quantities
       for (const item of itemsQuery.rows) {
         await client.query(
           `UPDATE products SET stock_quantity = stock_quantity - $1 WHERE product_id = $2`,
@@ -395,7 +371,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
         );
       }
 
-      // Update order status and shipping address
       await client.query(
         `UPDATE orders SET status = 'Pending', shipping_address = $1, order_date = NOW()
          WHERE order_id = $2`,
@@ -424,7 +399,6 @@ router.post('/place-order', authenticateToken, async (req, res) => {
   }
 });
 
-// Get user's orders
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -461,13 +435,11 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 });
 
-// Get specific order details
 router.get('/:orderId', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { orderId } = req.params;
 
-    // Get order
     const orderQuery = await pool.query(
       `SELECT * FROM orders WHERE order_id = $1 AND user_id = $2`,
       [orderId, userId]
@@ -480,7 +452,6 @@ router.get('/:orderId', authenticateToken, async (req, res) => {
       });
     }
 
-    // Get order items
     const itemsQuery = await pool.query(
       `SELECT oi.*, p.product_name, p.description
        FROM order_items oi
@@ -503,7 +474,6 @@ router.get('/:orderId', authenticateToken, async (req, res) => {
   }
 });
 
-// Update order status (admin functionality - can be added later)
 router.put('/:orderId/status', authenticateToken, async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -540,6 +510,41 @@ router.put('/:orderId/status', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error updating order status'
+    });
+  }
+});
+
+// Complete order (fake payment flow)
+router.put('/:orderId/complete', authenticateToken, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user.userId;
+
+    // Update order status from 'Cart' to 'Delivered' (payment complete)
+    const result = await pool.query(
+      `UPDATE orders 
+       SET status = 'Delivered' 
+       WHERE order_id = $1 AND user_id = $2 AND status = 'Cart' 
+       RETURNING *`,
+      [orderId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order not found or already completed'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Order placed successfully'
+    });
+  } catch (error) {
+    console.error('Error completing order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error completing order'
     });
   }
 });

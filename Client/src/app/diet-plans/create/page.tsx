@@ -1,188 +1,255 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { dietPlanService } from '@/lib/api/dietPlans';
-import { useUserStore } from '@/lib/store/userStore';
-import {
-  ArrowLeftIcon,
-  PlusIcon,
-  CalendarIcon,
-  ClockIcon,
-} from '@heroicons/react/24/outline';
+import { useState } from "react";
+import { useUserStore } from "@/lib/store/userStore";
+import { useRouter } from "next/navigation";
+
+type DietPlan = {
+  plan_name: string;
+  days: {
+    day: number;
+    meals: {
+      meal_time: "Breakfast" | "Lunch" | "Snack" | "Dinner";
+      items: {
+        food_name: string;
+        quantity: string;
+        calories_per_100g: number;
+        protein_per_100g: number;
+        carbs_per_100g: number;
+        fats_per_100g: number;
+      }[];
+    }[];
+  }[];
+};
 
 export default function CreateDietPlanPage() {
-  const router = useRouter();
-  const { isAuthenticated } = useUserStore();
+  const [currentWeight, setCurrentWeight] = useState("");
+  const [targetWeight, setTargetWeight] = useState("");
+  const [duration, setDuration] = useState("7");
+  const [dietType, setDietType] = useState<"vegetarian" | "vegan" | "non-vegetarian">("vegetarian");
   const [isLoading, setIsLoading] = useState(false);
-  const [planData, setPlanData] = useState({
-    planName: '',
-    startDate: '',
-    endDate: '',
-  });
+  const [generatedPlan, setGeneratedPlan] = useState<DietPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [planName, setPlanName] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const user = useUserStore((state) => state.user);
+  const router = useRouter();
+
+  const handleGeneratePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!isAuthenticated) {
-      router.push('/auth/login');
-      return;
-    }
-
-    if (!planData.planName.trim()) {
-      alert('Please enter a plan name');
-      return;
-    }
-
     setIsLoading(true);
+    setError(null);
+    setGeneratedPlan(null);
+
+    if (!user) {
+      setError("You must be logged in to create a diet plan.");
+      setIsLoading(false);
+      return;
+    }
+
+    const prompt = `
+      Create a detailed diet plan for a user with the following characteristics.
+      - Current Weight: ${currentWeight} kg
+      - Target Weight: ${targetWeight} kg
+      - Plan Duration: ${duration} days
+      - Dietary Preference: ${dietType}
+
+      The response must be a single, valid JSON object. Do not include any text, explanation, or markdown formatting outside of the JSON object.
+      The JSON object should have a "plan_name" (e.g., "${duration} Day Weight Loss Plan") and a "days" array.
+      Each object in the "days" array should represent a day and have a "day" number and a "meals" array.
+      The "meals" array should contain objects for "Breakfast", "Lunch", "Snack", and "Dinner".
+      Each meal object must have a "meal_time" and an "items" array.
+      Each item in the "items" array must have the following exact keys: "food_name", "quantity" (as a string like "100g" or "1 cup"), "calories_per_100g", "protein_per_100g", "carbs_per_100g", and "fats_per_100g".
+      All nutritional values must be numbers.
+
+      Example for a single day:
+      {
+        "day": 1,
+        "meals": [
+          {
+            "meal_time": "Breakfast",
+            "items": [
+              {
+                "food_name": "Oatmeal",
+                "quantity": "1 cup",
+                "calories_per_100g": 70,
+                "protein_per_100g": 3,
+                "carbs_per_100g": 12,
+                "fats_per_100g": 1.5
+              }
+            ]
+          }
+        ]
+      }
+    `;
+
     try {
-      const response = await dietPlanService.createPlan({
-        planName: planData.planName,
-        startDate: planData.startDate || undefined,
-        endDate: planData.endDate || undefined,
+      const response = await fetch("/api/gemini-suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
       });
 
-      if (response.success) {
-        router.push(`/diet-plans/${response.plan.plan_id}`);
-      } else {
-        alert('Failed to create diet plan: ' + response.message);
+      if (!response.ok) {
+        throw new Error("Failed to get response from AI.");
       }
-    } catch (error) {
-      console.error('Error creating diet plan:', error);
-      alert('Error creating diet plan. Please try again.');
+
+      const data = await response.json();
+      const parsedPlan = JSON.parse(data.text);
+      setGeneratedPlan(parsedPlan);
+      setPlanName(parsedPlan.plan_name || `My ${duration}-Day Diet Plan`);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to generate diet plan. The AI might be busy or the response was not in the correct format. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Please log in to create a diet plan
-          </h2>
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
-          >
-            Log In
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  const handleSavePlan = async () => {
+    if (!generatedPlan || !user) return;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/diet-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user.userId,
+          planName: planName,
+          startDate: new Date().toISOString().split("T")[0],
+          endDate: new Date(new Date().setDate(new Date().getDate() + parseInt(duration))).toISOString().split("T")[0],
+          planData: generatedPlan,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to save the diet plan.");
+      }
+
+      router.push("/diet-plans");
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred while saving.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center mb-4">
-            <Link
-              href="/diet-plans"
-              className="mr-4 p-2 text-gray-400 hover:text-gray-600"
-            >
-              <ArrowLeftIcon className="h-6 w-6" />
-            </Link>
-            <h1 className="text-3xl font-bold text-gray-900">Create Diet Plan</h1>
+    <div className="container  mx-auto px-4 py-8">
+      <h1 className="text-4xl font-bold mb-6">Create Your AI-Powered Diet Plan</h1>
+
+      <form onSubmit={handleGeneratePlan} className="bg-white text-black shadow-md rounded-lg p-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label htmlFor="currentWeight" className="block text-black font-bold mb-2">Current Weight (kg)</label>
+            <input
+              type="number"
+              id="currentWeight"
+              value={currentWeight}
+              onChange={(e) => setCurrentWeight(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
           </div>
-          <p className="text-gray-600">
-            Create a personalized diet plan to help you achieve your health goals.
-          </p>
+          <div>
+            <label htmlFor="targetWeight" className="block text-black font-bold mb-2">Target Weight (kg)</label>
+            <input
+              type="number"
+              id="targetWeight"
+              value={targetWeight}
+              onChange={(e) => setTargetWeight(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="duration" className="block text-black font-bold mb-2">Duration (days)</label>
+            <input
+              type="number"
+              id="duration"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              min="7"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="dietType" className="block text-black font-bold mb-2">Dietary Preference</label>
+            <select
+              id="dietType"
+              value={dietType}
+              onChange={(e) => setDietType(e.target.value as any)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
+            >
+              <option value="vegetarian">Vegetarian</option>
+              <option value="vegan">Vegan</option>
+              <option value="non-vegetarian">Non-Vegetarian</option>
+            </select>
+          </div>
         </div>
+        <div className="mt-6">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="bg-blue-500 hover:bg-blue-700 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:bg-blue-300"
+          >
+            {isLoading ? "Generating Plan..." : "Generate Diet Plan with AI"}
+          </button>
+        </div>
+      </form>
 
-        {/* Form */}
-        <div className="bg-white shadow rounded-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Plan Name */}
-            <div>
-              <label htmlFor="planName" className="block text-sm font-medium text-gray-700 mb-2">
-                Plan Name *
-              </label>
-              <input
-                type="text"
-                id="planName"
-                value={planData.planName}
-                onChange={(e) => setPlanData({ ...planData, planName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                placeholder="e.g., My Weight Loss Plan"
-                required
-              />
-            </div>
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">{error}</div>}
 
-            {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-2">
-                  <CalendarIcon className="h-4 w-4 inline mr-1" />
-                  Start Date (Optional)
-                </label>
-                <input
-                  type="date"
-                  id="startDate"
-                  value={planData.startDate}
-                  onChange={(e) => setPlanData({ ...planData, startDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-2">
-                  <ClockIcon className="h-4 w-4 inline mr-1" />
-                  End Date (Optional)
-                </label>
-                <input
-                  type="date"
-                  id="endDate"
-                  value={planData.endDate}
-                  onChange={(e) => setPlanData({ ...planData, endDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-green-500 focus:border-green-500"
-                  min={planData.startDate}
-                />
-              </div>
-            </div>
-
-            {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <PlusIcon className="h-5 w-5 text-blue-400" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">
-                    Next Steps
-                  </h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>
-                      After creating your plan, you'll be able to add meals and track your daily nutrition.
-                      You can customize meal times, add foods from our database, and monitor your progress.
-                    </p>
+      {generatedPlan && (
+        <div className="bg-white shadow-md rounded-lg p-8">
+          <h2 className="text-3xl font-bold mb-4">Your Generated Diet Plan</h2>
+          <div className="mb-4">
+            <label htmlFor="planName" className="block text-black font-bold mb-2">Plan Name</label>
+            <input
+              type="text"
+              id="planName"
+              value={planName}
+              onChange={(e) => setPlanName(e.target.value)}
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-black leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div className="space-y-6">
+            {generatedPlan.days.map((day) => (
+              <div key={day.day} className="border-b pb-4">
+                <h3 className="text-2xl font-semibold mb-3">Day {day.day}</h3>
+                {day.meals.map((meal) => (
+                  <div key={meal.meal_time} className="ml-4 mb-4">
+                    <h4 className="text-xl font-semibold">{meal.meal_time}</h4>
+                    <ul className="list-disc list-inside">
+                      {meal.items.map((item, index) => (
+                        <li key={index} className="text-black">
+                          {item.food_name} ({item.quantity}) - 
+                          <span className="text-sm text-black">
+                            {` Cals: ${item.calories_per_100g}, Prot: ${item.protein_per_100g}g, Carbs: ${item.carbs_per_100g}g, Fat: ${item.fats_per_100g}g`}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </div>
+                ))}
               </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex justify-end space-x-4">
-              <Link
-                href="/diet-plans"
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Creating...' : 'Create Plan'}
-              </button>
-            </div>
-          </form>
+            ))}
+          </div>
+          <div className="mt-6">
+            <button
+              onClick={handleSavePlan}
+              disabled={isLoading}
+              className="bg-teal-700 hover:bg-teal-800 text-black font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:bg-teal-300"
+            >
+              {isLoading ? "Saving..." : "Save This Plan"}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

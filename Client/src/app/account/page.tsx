@@ -66,7 +66,7 @@ export default function AccountPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "delivered":
-        return "bg-green-100 text-green-800";
+        return "bg-teal-100 text-teal-800";
       case "shipped":
         return "bg-blue-100 text-blue-800";
       case "processing":
@@ -97,12 +97,12 @@ export default function AccountPage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                  <UserIcon className="h-8 w-8 text-green-600" />
+                <div className="w-16 h-16 bg-teal-100 rounded-full flex items-center justify-center">
+                  <UserIcon className="h-8 w-8 text-teal-700" />
                 </div>
                 <div className="ml-4">
                   <h3 className="text-lg font-medium text-gray-900">
-                    {user.name}
+                    {user.username || user.email}
                   </h3>
                   <p className="text-sm text-gray-600">{user.email}</p>
                 </div>
@@ -115,7 +115,7 @@ export default function AccountPage() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`w-full flex items-center px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                       activeTab === tab.id
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-teal-100 text-teal-800"
                         : "text-gray-600 hover:bg-gray-100"
                     }`}
                   >
@@ -150,7 +150,7 @@ export default function AccountPage() {
                     </h2>
                     <button
                       onClick={() => setIsEditing(!isEditing)}
-                      className="flex items-center text-green-600 hover:text-green-700"
+                      className="flex items-center text-teal-700 hover:text-teal-800"
                     >
                       <PencilIcon className="h-4 w-4 mr-1" />
                       {isEditing ? "Cancel" : "Edit"}
@@ -165,11 +165,11 @@ export default function AccountPage() {
                       {isEditing ? (
                         <input
                           type="text"
-                          defaultValue={user.name}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500"
+                          defaultValue={user.username || user.email}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-teal-600"
                         />
                       ) : (
-                        <p className="text-gray-900">{user.name}</p>
+                        <p className="text-gray-900">{user.username || user.email}</p>
                       )}
                     </div>
 
@@ -181,7 +181,7 @@ export default function AccountPage() {
                         <input
                           type="email"
                           defaultValue={user.email}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black focus:outline-none focus:ring-2 focus:ring-teal-600"
                         />
                       ) : (
                         <p className="text-gray-900">{user.email}</p>
@@ -196,7 +196,7 @@ export default function AccountPage() {
                         <input
                           type="tel"
                           defaultValue="+1 (555) 123-4567"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
                         />
                       ) : (
                         <p className="text-gray-900">+1 (555) 123-4567</p>
@@ -211,7 +211,7 @@ export default function AccountPage() {
                         <input
                           type="date"
                           defaultValue="1990-01-01"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
                         />
                       ) : (
                         <p className="text-gray-900">January 1, 1990</p>
@@ -221,7 +221,7 @@ export default function AccountPage() {
 
                   {isEditing && (
                     <div className="mt-6 flex space-x-4">
-                      <button className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors">
+                      <button className="bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors">
                         Save Changes
                       </button>
                       <button
@@ -243,7 +243,7 @@ export default function AccountPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Primary Goal
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600">
                         <option>Weight Loss</option>
                         <option>Muscle Gain</option>
                         <option>Maintain Weight</option>
@@ -255,7 +255,7 @@ export default function AccountPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Activity Level
                       </label>
-                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                      <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600">
                         <option>Sedentary</option>
                         <option>Lightly Active</option>
                         <option>Moderately Active</option>
@@ -270,7 +270,7 @@ export default function AccountPage() {
                       <input
                         type="number"
                         defaultValue="150"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
                       />
                     </div>
 
@@ -281,7 +281,7 @@ export default function AccountPage() {
                       <input
                         type="number"
                         defaultValue="160"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-600"
                       />
                     </div>
                   </div>
@@ -366,11 +366,11 @@ export default function AccountPage() {
                           </div>
 
                           <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                            <button className="text-green-600 hover:text-green-700 text-sm font-medium">
+                            <button className="text-teal-700 hover:text-teal-800 text-sm font-medium">
                               View Details
                             </button>
                             {order.status === "delivered" && (
-                              <button className="text-green-600 hover:text-green-700 text-sm font-medium">
+                              <button className="text-teal-700 hover:text-teal-800 text-sm font-medium">
                                 Buy Again
                               </button>
                             )}
@@ -409,7 +409,7 @@ export default function AccountPage() {
                           defaultChecked
                           className="sr-only peer"
                         />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-700"></div>
                       </label>
                     </div>
 
@@ -427,7 +427,7 @@ export default function AccountPage() {
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" className="sr-only peer" />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-teal-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-700"></div>
                       </label>
                     </div>
 
@@ -443,7 +443,7 @@ export default function AccountPage() {
                           </p>
                         </div>
                       </div>
-                      <button className="text-green-600 hover:text-green-700 text-sm font-medium">
+                      <button className="text-teal-700 hover:text-teal-800 text-sm font-medium">
                         Enable
                       </button>
                     </div>

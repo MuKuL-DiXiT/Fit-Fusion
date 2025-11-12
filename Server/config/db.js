@@ -20,4 +20,4 @@ async function getUsers() {
 }
 
 getUsers();
-module.exports = pool;
+module.exports ={ pool };

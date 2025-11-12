@@ -1,5 +1,5 @@
 const bcrypt = require("bcryptjs");
-const pool = require("../config/db");
+const { pool } = require("../config/db");
 const { generateToken, getCookieOptions } = require("../middleware/auth");
 
 // User signup controller
@@ -203,12 +203,12 @@ const logout = async (req, res) => {
 };
 
 // Get current user profile controller
-const getProfile = async (req, res) => {
+  const getProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
 
     const userQuery = await pool.query(
-      "SELECT user_id, username, email, phone_number, address, created_at, updated_at FROM users WHERE user_id = $1",
+      "SELECT user_id, username, email, phone_number, address, role, created_at, updated_at FROM users WHERE user_id = $1",
       [userId]
     );
 
@@ -229,6 +229,7 @@ const getProfile = async (req, res) => {
         email: user.email,
         phone_number: user.phone_number,
         address: user.address,
+          role: user.role,
         created_at: user.created_at,
         updated_at: user.updated_at,
       },
@@ -322,6 +323,7 @@ const updateProfile = async (req, res) => {
         username: user.username,
         email: user.email,
         phone_number: user.phone_number,
+        role: user.role,
         address: user.address,
         updated_at: user.updated_at,
       },

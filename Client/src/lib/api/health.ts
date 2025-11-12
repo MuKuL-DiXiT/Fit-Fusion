@@ -35,7 +35,7 @@ export interface ApiResponse<T> {
 }
 
 class HealthService {
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         credentials: 'include',
@@ -49,10 +49,11 @@ class HealthService {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        const msg = data && typeof data === 'object' && 'message' in (data as Record<string, unknown>) ? String((data as Record<string, unknown>).message) : 'Request failed';
+        throw new Error(msg);
       }
       
-      return data;
+      return data as T;
     } catch (error) {
       console.error('Health API request failed:', error);
       throw error;

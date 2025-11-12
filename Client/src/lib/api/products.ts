@@ -1,125 +1,59 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = 'http://localhost:3001/api';
 
 export interface Product {
   product_id: number;
   product_name: string;
   description?: string;
   price: number;
-  stock_quantity: number;
+  category_id?: number;
   category_name?: string;
+  supplier_id?: number;
   supplier_name?: string;
-  avg_rating: number;
-  review_count: number;
-  created_at: string;
-  updated_at: string;
+  avg_rating?: number;
+  review_count?: number;
+  stock_quantity?: number;
 }
 
-export interface Category {
-  category_id: number;
-  category_name: string;
-  description?: string;
+export interface ProductsResponse {
+  success: boolean;
+  products: Product[];
 }
 
-export interface Review {
-  review_id: number;
-  user_id: number;
-  product_id: number;
-  rating: number;
-  comment?: string;
-  username: string;
-  reviewed_at: string;
+export interface ProductDetailResponse {
+  success: boolean;
+  product: Product;
+  reviews?: any[];
 }
 
-export interface ProductFilters {
-  category?: string;
-  search?: string;
-  sortBy?: string;
-  sortOrder?: 'ASC' | 'DESC';
-  page?: number;
-  limit?: number;
-  minPrice?: number;
-  maxPrice?: number;
-}
-
-class ProductService {
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+export const productService = {
+  async getProducts(): Promise<ProductsResponse> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        ...options,
-      });
-
-      const data = await response.json();
-      
+      const response = await fetch(`${API_BASE_URL}/products`);
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        throw new Error('Failed to fetch products');
       }
-      
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error('Product API request failed:', error);
+      console.error('Error fetching products:', error);
       throw error;
     }
-  }
+  },
 
-  async getProducts(filters?: ProductFilters): Promise<{
-    success: boolean;
-    products: Product[];
-    pagination: {
-      currentPage: number;
-      totalPages: number;
-      totalProducts: number;
-      limit: number;
-    };
-    message?: string;
-  }> {
-    const queryParams = new URLSearchParams();
-    
-    if (filters) {
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, value.toString());
-        }
-      });
+  async getProductById(productId: string | number): Promise<ProductDetailResponse> {
+    try {
+      const response = await fetch(`${API_BASE_URL}/products/${productId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch product');
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching product:', error);
+      throw error;
     }
+  },
 
-    const queryString = queryParams.toString();
-    const endpoint = `/api/products${queryString ? `?${queryString}` : ''}`;
-    
-    return this.makeRequest(endpoint);
-  }
-
-  async getProduct(productId: number): Promise<{
-    success: boolean;
-    product: Product;
-    reviews: Review[];
-    message?: string;
-  }> {
-    return this.makeRequest(`/api/products/${productId}`);
-  }
-
-  async getCategories(): Promise<{
-    success: boolean;
-    categories: Category[];
-    message?: string;
-  }> {
-    return this.makeRequest('/api/products/categories/list');
-  }
-
-  async addReview(productId: number, rating: number, comment?: string): Promise<{
-    success: boolean;
-    review: Review;
-    message?: string;
-  }> {
-    return this.makeRequest(`/api/products/${productId}/reviews`, {
-      method: 'POST',
-      body: JSON.stringify({ rating, comment }),
-    });
-  }
-}
-
-export const productService = new ProductService();
+  // Alias for getProductById
+  async getProduct(productId: string | number): Promise<ProductDetailResponse> {
+    return this.getProductById(productId);
+  },
+};

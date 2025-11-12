@@ -5,36 +5,93 @@ import { useRouter } from "next/navigation";
 import { useUserStore } from "@/lib/store/userStore";
 
 export default function SupplierDashboard() {
-  const { user } = useUserStore();
+  const { user, isAuthenticated, isLoading, checkAuth } = useUserStore();
+  setTimeout(() => {}, 2000);
   const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    if (!user || user.role !== "supplier") {
-      router.replace("/"); // redirect non-suppliers
+    let cancelled = false;
+    (async () => {
+      try {
+        await checkAuth();
+      } finally {
+        if (!cancelled) setAuthChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [checkAuth]);
+
+  useEffect(() => {
+
+    if ( !user || user.role != 'supplier') {
+      router.replace("/");
     }
-  }, [user, router]);
+  }, [authChecked, isAuthenticated, user, router]);
 
   // Inventory management state
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [newProduct, setNewProduct] = useState({
+    product_name: '',
+    description: '',
+    price: '',
+    stock_quantity: '',
+    category_id: ''
+  });
 
   useEffect(() => {
     async function fetchProducts() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/supplier-inventory");
+        const res = await fetch("http://localhost:3001/api/products/supplier/mine", {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to load inventory");
+        }
         const data = await res.json();
-        setProducts(data);
+        if (data.success) {
+          const mapped = (data.products || []).map((p: any) => ({
+            id: String(p.product_id),
+            name: p.product_name,
+            stock_quantity: p.stock_quantity ?? 0,
+            inStock: (p.stock_quantity ?? 0) > 0,
+          }));
+          setProducts(mapped);
+        } else {
+          throw new Error(data.message || "Failed to load inventory");
+        }
       } catch (e) {
-        setError("Failed to load inventory");
+        setError(e instanceof Error ? e.message : "Failed to load inventory");
       } finally {
         setLoading(false);
       }
     }
     fetchProducts();
+  }, [authChecked, isAuthenticated, user]);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      try {
+        const res = await fetch("http://localhost:3001/api/products/categories/list");
+        const data = await res.json();
+        if (data.success) {
+          setCategories(data.categories);
+        }
+      } catch (e) {
+        console.error("Failed to load categories");
+      }
+    }
+    fetchCategories();
   }, []);
 
   const handleStockChange = (id: string, value: number) => {
@@ -74,6 +131,50 @@ export default function SupplierDashboard() {
     }
   };
 
+  const handleAddProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch("http://localhost:3001/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          product_name: newProduct.product_name,
+          description: newProduct.description,
+          price: parseFloat(newProduct.price),
+          stock_quantity: parseInt(newProduct.stock_quantity) || 0,
+          category_id: parseInt(newProduct.category_id)
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Product added successfully!");
+        setShowAddModal(false);
+        setNewProduct({
+          product_name: '',
+          description: '',
+          price: '',
+          stock_quantity: '',
+          category_id: ''
+        });
+        // Refresh products list
+        window.location.reload();
+      } else {
+        alert(data.message || "Failed to add product");
+      }
+    } catch (e) {
+      alert("Error adding product");
+    }
+  };
+
+  if (!authChecked || isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       {/* Stats Overview */}
@@ -96,11 +197,11 @@ export default function SupplierDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-green-500">
+  <div className="rounded-lg bg-white p-6 shadow-sm border-l-4 border-teal-600">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="h-10 w-10 rounded-md bg-green-100 flex items-center justify-center">
-                <i className="fas fa-check-circle text-green-600"></i>
+              <div className="h-10 w-10 rounded-md bg-teal-100 flex items-center justify-center">
+                <i className="fas fa-check-circle text-teal-700"></i>
               </div>
             </div>
             <div className="ml-4">
@@ -147,13 +248,21 @@ export default function SupplierDashboard() {
 
       {/* Inventory Management Section */}
       <div className="rounded-xl bg-white shadow-sm overflow-hidden">
-        <div className="border-b border-gray-200 px-6 py-4">
-          <h3 className="text-lg font-semibold text-gray-800">
-            Inventory Management
-          </h3>
-          <p className="text-sm text-gray-600">
-            Manage your product inventory and stock levels
-          </p>
+        <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">
+              Inventory Management
+            </h3>
+            <p className="text-sm text-gray-600">
+              Manage your product inventory and stock levels
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition flex items-center gap-2"
+          >
+            <span>+</span> Add Product
+          </button>
         </div>
 
         <div className="p-6">
@@ -289,7 +398,7 @@ export default function SupplierDashboard() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-green-600 h-2 rounded-full"
+                  className="bg-teal-700 h-2 rounded-full"
                   style={{
                     width:
                       products.length > 0
@@ -375,6 +484,97 @@ export default function SupplierDashboard() {
           </ul>
         </div>
       </div>
+
+      {/* Add Product Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold mb-4">Add New Product</h2>
+            <form onSubmit={handleAddProduct} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newProduct.product_name}
+                  onChange={(e) => setNewProduct({...newProduct, product_name: e.target.value})}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  value={newProduct.description}
+                  onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
+                  className="w-full border rounded-md px-3 py-2"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Price *
+                </label>
+                <input
+                  type="number"
+                  required
+                  step="0.01"
+                  value={newProduct.price}
+                  onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Stock Quantity
+                </label>
+                <input
+                  type="number"
+                  value={newProduct.stock_quantity}
+                  onChange={(e) => setNewProduct({...newProduct, stock_quantity: e.target.value})}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Category *
+                </label>
+                <select
+                  required
+                  value={newProduct.category_id}
+                  onChange={(e) => setNewProduct({...newProduct, category_id: e.target.value})}
+                  className="w-full border rounded-md px-3 py-2"
+                >
+                  <option value="">Select Category</option>
+                  {categories.map((cat) => (
+                    <option key={cat.category_id} value={cat.category_id}>
+                      {cat.category_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  className="flex-1 bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800"
+                >
+                  Add Product
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

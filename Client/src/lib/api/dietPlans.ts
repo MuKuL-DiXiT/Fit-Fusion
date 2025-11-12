@@ -53,7 +53,7 @@ export interface AIGenerationData {
 class DietPlanService {
   private baseUrl = 'http://localhost:3001';
 
-  private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
+  private async makeRequest<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         credentials: 'include',
@@ -67,10 +67,11 @@ class DietPlanService {
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
+        const msg = data && typeof data === 'object' && 'message' in (data as Record<string, unknown>) ? String((data as Record<string, unknown>).message) : 'Request failed';
+        throw new Error(msg);
       }
       
-      return data;
+      return data as T;
     } catch (error) {
       console.error('Diet Plan API request failed:', error);
       throw error;

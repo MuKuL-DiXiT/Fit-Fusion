@@ -1,613 +1,510 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useUserStore } from '@/lib/store/userStore';
-import axios from 'axios';
-import { healthService, type FoodLogEntry, type ExerciseLogEntry, type DailySummary } from '@/lib/api/health';
+import { useState, useEffect } from "react";
+import { useUserStore } from "@/lib/store/userStore";
+import { useRouter } from "next/navigation";
 import {
-  MagnifyingGlassIcon,
-  FireIcon,
-  HeartIcon,
-  ScaleIcon,
-  ClockIcon,
+  PlusIcon,
   TrashIcon,
-  SparklesIcon,
-  LightBulbIcon,
-} from '@heroicons/react/24/outline';
+  FireIcon,
+  BoltIcon,
+  NoSymbolIcon,
+} from "@heroicons/react/24/outline";
 
-interface NutritionData {
-  name: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+// --- Types ---
+interface Food {
+  food_id?: number;
+  food_name: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fats_per_100g: number;
+  source?: "db" | "ai";
 }
 
-interface ExerciseData {
-  name: string;
-  calories: number;
+interface Exercise {
+  exercise_id?: number;
+  exercise_name: string;
+  calories_burned_per_minute: number;
+  source?: "db" | "ai";
 }
 
-interface FoodEntry {
-  id: string;
-  food: NutritionData;
-  quantity: number;
-  meal: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+interface FoodLog {
+  log_id: number;
+  food_name: string;
+  quantity_grams: number;
+  total_calories: number;
+  meal_time: "Breakfast" | "Lunch" | "Snack" | "Dinner";
 }
 
-interface ExerciseEntry {
-  id: string;
-  exercise: string;
-  duration: number;
-  calories: number;
+interface ExerciseLog {
+  log_id: number;
+  exercise_name: string;
+  duration_minutes: number;
+  total_calories_burned: number;
 }
 
+// --- Main Component ---
 export default function HealthTrackerPage() {
-  const { user } = useUserStore();
-  const [activeTab, setActiveTab] = useState<'food' | 'exercise'>('food');
-  
-  // Food tracking state
-  const [foodQuery, setFoodQuery] = useState('');
-  const [foodResult, setFoodResult] = useState<NutritionData | null>(null);
-  const [foodEntries, setFoodEntries] = useState<FoodEntry[]>([]);
-  const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('breakfast');
-  
-  // Exercise tracking state
-  const [exerciseQuery, setExerciseQuery] = useState('');
-  const [exerciseResult, setExerciseResult] = useState<ExerciseData | null>(null);
-  const [exerciseEntries, setExerciseEntries] = useState<ExerciseEntry[]>([]);
+  const { user, isAuthenticated } = useUserStore();
+  const router = useRouter();
 
-  // AI Suggestions state
-  const [foodSuggestions, setFoodSuggestions] = useState<any>(null);
-  const [exerciseSuggestions, setExerciseSuggestions] = useState<any>(null);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
+  const [exerciseLogs, setExerciseLogs] = useState<ExerciseLog[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleFoodSearch = async () => {
-    if (!foodQuery.trim()) return;
-    try {
-      const response = await axios.get('/api/health-data', {
-        params: { type: 'food', query: foodQuery },
-      });
-      setFoodResult({ name: foodQuery, ...response.data });
-    } catch (error) {
-      console.error('Error fetching food data:', error);
-    }
-  };
-
-  const addFoodEntry = (food: NutritionData, quantity: number = 1) => {
-    const newEntry: FoodEntry = {
-      id: Date.now().toString(),
-      food,
-      quantity,
-      meal: selectedMeal,
-    };
-    setFoodEntries([...foodEntries, newEntry]);
-    setFoodResult(null);
-    setFoodQuery('');
-  };
-
-  const removeFoodEntry = (id: string) => {
-    setFoodEntries(foodEntries.filter(entry => entry.id !== id));
-  };
-
-  const handleExerciseSearch = async () => {
-    if (!exerciseQuery.trim()) return;
-    try {
-      const response = await axios.get('/api/health-data', {
-        params: { type: 'exercise', query: exerciseQuery },
-      });
-      setExerciseResult({ name: exerciseQuery, ...response.data });
-    } catch (error) {
-      console.error('Error fetching exercise data:', error);
-    }
-  };
-
-  const addExerciseEntry = (exercise: ExerciseData) => {
-    const newEntry: ExerciseEntry = {
-      id: Date.now().toString(),
-      exercise: exercise.name,
-      duration: 30, // Assuming a default duration for mock data
-      calories: exercise.calories,
-    };
-    setExerciseEntries([...exerciseEntries, newEntry]);
-    setExerciseResult(null);
-    setExerciseQuery('');
-  };
-
-  const removeExerciseEntry = (id: string) => {
-    setExerciseEntries(exerciseEntries.filter(entry => entry.id !== id));
-  };
-
-  // AI Suggestions functions
-  const getFoodSuggestions = async () => {
-    if (!user) return;
-    
-    setLoadingSuggestions(true);
-    try {
-      const response = await axios.post('/api/gemini-suggestions', {
-        type: 'food-suggestions',
-        data: {
-          foodItems: foodEntries.map(entry => ({
-            name: entry.food.name,
-            calories: entry.food.calories * entry.quantity,
-            protein: entry.food.protein * entry.quantity,
-            carbs: entry.food.carbs * entry.quantity,
-            fat: entry.food.fat * entry.quantity
-          })),
-          currentMeal: selectedMeal
-        },
-        userProfile: {
-          goals: 'Weight loss and muscle gain', // Can be made dynamic
-          activityLevel: 'Moderate',
-          dietaryRestrictions: 'None',
-          weightGoal: 'Lose weight'
-        }
-      });
-      setFoodSuggestions(response.data.suggestions);
-    } catch (error) {
-      console.error('Error getting food suggestions:', error);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  const getExerciseSuggestions = async () => {
-    if (!user) return;
-    
-    setLoadingSuggestions(true);
-    try {
-      const response = await axios.post('/api/gemini-suggestions', {
-        type: 'exercise-suggestions',
-        data: {
-          recentExercises: exerciseEntries.map(entry => ({
-            name: entry.exercise,
-            duration: entry.duration,
-            caloriesBurned: entry.calories
-          }))
-        },
-        userProfile: {
-          goals: 'Weight loss and fitness',
-          fitnessLevel: 'Intermediate',
-          equipment: 'Home gym basics',
-          timeAvailable: '45 minutes',
-          limitations: 'None'
-        }
-      });
-      setExerciseSuggestions(response.data.suggestions);
-    } catch (error) {
-      console.error('Error getting exercise suggestions:', error);
-    } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  // Auto-fetch suggestions when entries change
-  useEffect(() => {
-    if (foodEntries.length > 0 && user) {
-      getFoodSuggestions();
-    }
-  }, [foodEntries, user]);
+  const [showFoodModal, setShowFoodModal] = useState(false);
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
 
   useEffect(() => {
-    if (exerciseEntries.length > 0 && user) {
-      getExerciseSuggestions();
+    if (!isAuthenticated) {
+      router.push("/auth/login");
+    } else {
+      fetchTodaysLogs();
     }
-  }, [exerciseEntries, user]);
+  }, [isAuthenticated, router]);
 
-  // Calculate totals
-  const totalCaloriesConsumed = foodEntries.reduce((total, entry) => 
-    total + (entry.food.calories * entry.quantity), 0
-  );
+  const fetchTodaysLogs = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:3001/api/log/today", { credentials: "include" });
+      const data = await res.json();
+      if (data.success) {
+        setFoodLogs(data.food);
+        setExerciseLogs(data.exercise);
+      }
+    } catch (error) {
+      console.error("Failed to fetch logs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const totalCaloriesBurned = exerciseEntries.reduce((total, entry) => 
-    total + entry.calories, 0
-  );
+  const totalCaloriesIn = foodLogs.reduce((sum, log) => sum + Number(log.total_calories), 0);
+  const totalCaloriesOut = exerciseLogs.reduce((sum, log) => sum + Number(log.total_calories_burned), 0);
+  const netCalories = totalCaloriesIn - totalCaloriesOut;
 
-  const netCalories = totalCaloriesConsumed - totalCaloriesBurned;
+  const handleDelete = async (type: "food" | "exercise", logId: number) => {
+    if (!confirm("Are you sure you want to delete this log?")) return;
 
-  const totalMacros = foodEntries.reduce((totals, entry) => ({
-    protein: totals.protein + (entry.food.protein * entry.quantity),
-    carbs: totals.carbs + (entry.food.carbs * entry.quantity),
-    fat: totals.fat + (entry.food.fat * entry.quantity),
-  }), { protein: 0, carbs: 0, fat: 0 });
-
-  const groupedFoodEntries = foodEntries.reduce((groups, entry) => {
-    if (!groups[entry.meal]) groups[entry.meal] = [];
-    groups[entry.meal].push(entry);
-    return groups;
-  }, {} as Record<string, FoodEntry[]>);
+    try {
+      await fetch(`http://localhost:3001/api/log/${type}/${logId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      fetchTodaysLogs(); // Refresh logs
+    } catch (error) {
+      console.error(`Failed to delete ${type} log:`, error);
+    }
+  };
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Health Tracker</h1>
-          <p className="text-gray-600">Track your food intake and exercise to maintain a healthy lifestyle</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-5xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900">Health Tracker</h1>
+          <p className="text-lg text-black mt-2">
+            Log your daily food intake and exercise to stay on top of your goals.
+          </p>
+        </header>
 
-        {/* Daily Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <FireIcon className="h-8 w-8 text-orange-500 mr-3" />
-              <div>
-                <p className="text-sm text-gray-600">Calories Consumed</p>
-                <p className="text-2xl font-bold text-gray-900">{totalCaloriesConsumed}</p>
-              </div>
+        {/* Calorie Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white p-6 rounded-xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-green-100 rounded-full">
+              <FireIcon className="h-8 w-8 text-green-600" />
+            </div>
+            <div>
+              <p className="text-sm text-black">Calories In</p>
+              <p className="text-2xl font-bold text-gray-900">{totalCaloriesIn.toFixed(0)}</p>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <HeartIcon className="h-8 w-8 text-red-500 mr-3" />
-              <div>
-                <p className="text-sm text-gray-600">Calories Burned</p>
-                <p className="text-2xl font-bold text-gray-900">{totalCaloriesBurned}</p>
-              </div>
+          <div className="bg-white p-6 rounded-xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-red-100 rounded-full">
+              <BoltIcon className="h-8 w-8 text-red-600" />
+            </div>
+            <div>
+              <p className="text-sm text-black">Calories Out</p>
+              <p className="text-2xl font-bold text-gray-900">{totalCaloriesOut.toFixed(0)}</p>
             </div>
           </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <ScaleIcon className="h-8 w-8 text-blue-500 mr-3" />
-              <div>
-                <p className="text-sm text-gray-600">Net Calories</p>
-                <p className={`text-2xl font-bold ${netCalories >= 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                  {netCalories >= 0 ? '+' : ''}{netCalories}
-                </p>
-              </div>
+          <div className="bg-white p-6 rounded-xl shadow-md flex items-center gap-4">
+            <div className="p-3 bg-blue-100 rounded-full">
+              <FireIcon className="h-8 w-8 text-blue-600" />
             </div>
-          </div>
-          
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <div className="flex items-center">
-              <ClockIcon className="h-8 w-8 text-purple-500 mr-3" />
-              <div>
-                <p className="text-sm text-gray-600">Exercise Time</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {exerciseEntries.reduce((total, entry) => total + entry.duration, 0)} min
-                </p>
-              </div>
+            <div>
+              <p className="text-sm text-black">Net Calories</p>
+              <p className="text-2xl font-bold text-gray-900">{netCalories.toFixed(0)}</p>
             </div>
           </div>
         </div>
 
-        {/* Macros Summary */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Daily Macros</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{Math.round(totalMacros.protein)}g</div>
-              <div className="text-sm text-gray-600">Protein</div>
+        {/* Food and Exercise Logs */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Food Log */}
+          <div className="bg-white p-6 rounded-xl shadow-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800">Food Log</h2>
+              <button
+                onClick={() => setShowFoodModal(true)}
+                className="bg-teal-600 text-black px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Log Food
+              </button>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{Math.round(totalMacros.carbs)}g</div>
-              <div className="text-sm text-gray-600">Carbs</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{Math.round(totalMacros.fat)}g</div>
-              <div className="text-sm text-gray-600">Fat</div>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {loading ? (
+                <p>Loading logs...</p>
+              ) : foodLogs.length > 0 ? (
+                (["Breakfast", "Lunch", "Dinner", "Snack"] as const).map(mealTime => {
+                  const logsForMeal = foodLogs.filter(log => log.meal_time === mealTime);
+                  if (logsForMeal.length === 0) return null;
+
+                  return (
+                    <div key={mealTime}>
+                      <h3 className="text-md font-semibold text-black mt-4 mb-2">{mealTime}</h3>
+                      {logsForMeal.map(log => (
+                        <div key={log.log_id} className="bg-gray-50 p-3 rounded-lg flex justify-between items-center mb-2">
+                          <div>
+                            <p className="font-medium">{log.food_name}</p>
+                            <p className="text-sm text-black">
+                              {log.quantity_grams}g - {Number(log.total_calories).toFixed(0)} kcal
+                            </p>
+                          </div>
+                          <button onClick={() => handleDelete("food", log.log_id)} className="text-red-500 hover:text-red-700">
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-8 text-black">
+                  <NoSymbolIcon className="h-12 w-12 mx-auto mb-2" />
+                  <p>No food logged for today.</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
-              {[
-                { id: 'food', label: 'Food Tracker', icon: FireIcon },
-                { id: 'exercise', label: 'Exercise Tracker', icon: HeartIcon },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as 'food' | 'exercise')}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center space-x-2 ${
-                    activeTab === tab.id
-                      ? 'border-green-500 text-green-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <tab.icon className="h-5 w-5" />
-                  <span>{tab.label}</span>
-                </button>
-              ))}
-            </nav>
-          </div>
-
-          <div className="p-6">
-            {activeTab === 'food' && (
-              <div className="space-y-6">
-                {/* Food Search */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Search Food</h3>
-                  <div className="flex gap-4 mb-4">
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        placeholder="e.g., 1 cup of rice"
-                        value={foodQuery}
-                        onChange={(e) => setFoodQuery(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleFoodSearch()}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 text-black"
-                      />
-                    </div>
-                    <select
-                      value={selectedMeal}
-                      onChange={(e) => setSelectedMeal(e.target.value as any)}
-                      className="px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 text-gray-900"
-                    >
-                      <option value="breakfast">Breakfast</option>
-                      <option value="lunch">Lunch</option>
-                      <option value="dinner">Dinner</option>
-                      <option value="snack">Snack</option>
-                    </select>
-                    <button
-                      onClick={handleFoodSearch}
-                      className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
-                    >
-                      <MagnifyingGlassIcon className="h-5 w-5" />
-                      <span>Search</span>
-                    </button>
-                  </div>
-
-                  {/* Search Result */}
-                  {foodResult && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md mb-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium text-green-900 capitalize">{foodResult.name}</h4>
-                          <p className="text-sm text-green-700">
-                            {foodResult.calories} cal, {foodResult.protein}g protein, {foodResult.carbs}g carbs, {foodResult.fat}g fat
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => addFoodEntry(foodResult)}
-                          className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                        >
-                          Add to Log
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Food Entries by Meal */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Today's Meals</h3>
-                  {['breakfast', 'lunch', 'dinner', 'snack'].map((meal) => (
-                    <div key={meal} className="mb-6">
-                      <h4 className="font-medium text-gray-700 mb-2 capitalize">{meal}</h4>
-                      <div className="space-y-2">
-                        {(groupedFoodEntries[meal] || []).map((entry) => (
-                          <div key={entry.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                            <div>
-                              <span className="font-medium capitalize">{entry.food.name}</span>
-                              <span className="text-gray-600"> x{entry.quantity}</span>
-                              <div className="text-sm text-gray-600">
-                                {Math.round(entry.food.calories * entry.quantity)} cal
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => removeFoodEntry(entry.id)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
-                          </div>
-                        ))}
-                        {(!groupedFoodEntries[meal] || groupedFoodEntries[meal].length === 0) && (
-                          <p className="text-gray-500 text-sm italic">No food added for {meal}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* AI Food Suggestions */}
-                {user && (
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <SparklesIcon className="h-6 w-6 text-blue-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">AI Nutrition Insights</h3>
-                      </div>
-                      <button
-                        onClick={() => setShowSuggestions(!showSuggestions)}
-                        className="text-blue-600 hover:text-blue-700 text-sm font-medium"
-                      >
-                        {showSuggestions ? 'Hide' : 'Show'} Suggestions
-                      </button>
-                    </div>
-                    
-                    {showSuggestions && (
-                      <div>
-                        {loadingSuggestions && (
-                          <div className="flex items-center space-x-2 text-blue-600">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                            <span>Getting personalized suggestions...</span>
-                          </div>
-                        )}
-                        
-                        {foodSuggestions && !loadingSuggestions && (
-                          <div className="space-y-4">
-                            {foodSuggestions.suggestions?.map((suggestion: any, index: number) => (
-                              <div key={index} className="bg-white rounded-lg p-4 border border-blue-100">
-                                <div className="flex items-start space-x-3">
-                                  <LightBulbIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
-                                  <div>
-                                    <p className="font-medium text-gray-900 capitalize">{suggestion.type}</p>
-                                    <p className="text-gray-700 text-sm mt-1">{suggestion.message}</p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                            
-                            {foodSuggestions.nextMealSuggestions?.length > 0 && (
-                              <div className="bg-white rounded-lg p-4 border border-blue-100">
-                                <h4 className="font-medium text-gray-900 mb-2">Next Meal Suggestions</h4>
-                                <div className="flex flex-wrap gap-2">
-                                  {foodSuggestions.nextMealSuggestions.map((food: string, index: number) => (
-                                    <span key={index} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                                      {food}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        
-                        {!foodSuggestions && !loadingSuggestions && foodEntries.length === 0 && (
-                          <p className="text-gray-600 text-sm">Add some food entries to get personalized nutrition suggestions!</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'exercise' && (
-              <div className="space-y-6">
-                {/* Exercise Calculator */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Search Exercise</h3>
-                  <div className="flex gap-4 mb-4">
-                    <input
-                      type="text"
-                      placeholder="e.g., 30 minutes of running"
-                      value={exerciseQuery}
-                      onChange={(e) => setExerciseQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleExerciseSearch()}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-green-500 focus:border-green-500 text-gray-900"
-                    />
-                    <button
-                      onClick={handleExerciseSearch}
-                      className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center space-x-2"
-                    >
-                      <MagnifyingGlassIcon className="h-5 w-5" />
-                      <span>Search</span>
-                    </button>
-                  </div>
-
-                  {/* Exercise Result */}
-                  {exerciseResult && (
-                    <div className="p-4 bg-green-50 border border-green-200 rounded-md mb-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium text-green-900 capitalize">{exerciseResult.name}</h4>
-                          <p className="text-green-700">
-                            Burns approximately {exerciseResult.calories} calories
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => addExerciseEntry(exerciseResult)}
-                          className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
-                        >
-                          Add to Log
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Exercise Entries */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Today's Exercises</h3>
-                  <div className="space-y-3">
-                    {exerciseEntries.map((entry) => (
-                      <div key={entry.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-md">
-                        <div>
-                          <div className="font-medium capitalize">{entry.exercise}</div>
-                          <div className="text-sm text-gray-600">
-                            {entry.calories} calories burned
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => removeExerciseEntry(entry.id)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    ))}
-                    {exerciseEntries.length === 0 && (
-                      <p className="text-gray-500 text-center py-8">
-                        No exercises logged today.
+          {/* Exercise Log */}
+          <div className="bg-white p-6 rounded-xl shadow-md">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800">Exercise Log</h2>
+              <button
+                onClick={() => setShowExerciseModal(true)}
+                className="bg-teal-600 text-black px-4 py-2 rounded-lg hover:bg-teal-700 flex items-center gap-2"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Log Exercise
+              </button>
+            </div>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {loading ? (
+                <p>Loading logs...</p>
+              ) : exerciseLogs.length > 0 ? (
+                exerciseLogs.map((log) => (
+                  <div key={log.log_id} className="bg-gray-50 p-3 rounded-lg flex justify-between items-center">
+                    <div>
+                      <p className="font-medium">{log.exercise_name}</p>
+                      <p className="text-sm text-black">
+                        {log.duration_minutes} min - {Number(log.total_calories_burned).toFixed(0)} kcal
                       </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* AI Exercise Suggestions */}
-                {user && (
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-2">
-                        <SparklesIcon className="h-6 w-6 text-green-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">AI Fitness Recommendations</h3>
-                      </div>
-                      <button
-                        onClick={getExerciseSuggestions}
-                        className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium"
-                      >
-                        Get Suggestions
-                      </button>
                     </div>
-                    
-                    {loadingSuggestions && (
-                      <div className="flex items-center space-x-2 text-green-600">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                        <span>Generating workout recommendations...</span>
-                      </div>
-                    )}
-                    
-                    {exerciseSuggestions && !loadingSuggestions && (
-                      <div className="space-y-4">
-                        {exerciseSuggestions.suggestions?.map((suggestion: any, index: number) => (
-                          <div key={index} className="bg-white rounded-lg p-4 border border-green-100">
-                            <div className="flex items-start space-x-3">
-                              <LightBulbIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
-                              <div>
-                                <p className="font-medium text-gray-900 capitalize">{suggestion.type}</p>
-                                <p className="text-gray-700 text-sm mt-1">{suggestion.message}</p>
-                                {suggestion.exercise && (
-                                  <div className="mt-2 p-2 bg-green-50 rounded text-sm">
-                                    <strong>{suggestion.exercise.name}</strong> - {suggestion.exercise.duration} 
-                                    ({suggestion.exercise.intensity} intensity)
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {exerciseSuggestions.progressTips?.length > 0 && (
-                          <div className="bg-white rounded-lg p-4 border border-green-100">
-                            <h4 className="font-medium text-gray-900 mb-2">Progress Tips</h4>
-                            <ul className="space-y-1">
-                              {exerciseSuggestions.progressTips.map((tip: string, index: number) => (
-                                <li key={index} className="text-gray-700 text-sm">• {tip}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {!exerciseSuggestions && !loadingSuggestions && (
-                      <p className="text-gray-600 text-sm">Click "Get Suggestions" to receive personalized workout recommendations based on your activity!</p>
-                    )}
+                    <button onClick={() => handleDelete("exercise", log.log_id)} className="text-red-500 hover:text-red-700">
+                      <TrashIcon className="h-5 w-5" />
+                    </button>
                   </div>
-                )}
-              </div>
-            )}
+                ))
+              ) : (
+                <div className="text-center py-8 text-black">
+                  <NoSymbolIcon className="h-12 w-12 mx-auto mb-2" />
+                  <p>No exercise logged for today.</p>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showFoodModal && (
+        <LogFoodModal
+          onClose={() => setShowFoodModal(false)}
+          onLogSuccess={() => {
+            setShowFoodModal(false);
+            fetchTodaysLogs();
+          }}
+        />
+      )}
+      {showExerciseModal && (
+        <LogExerciseModal
+          onClose={() => setShowExerciseModal(false)}
+          onLogSuccess={() => {
+            setShowExerciseModal(false);
+            fetchTodaysLogs();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Food Modal Component ---
+function LogFoodModal({ onClose, onLogSuccess }: { onClose: () => void; onLogSuccess: () => void }) {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<Food[]>([]);
+  const [selectedFood, setSelectedFood] = useState<Food | null>(null);
+  const [quantity, setQuantity] = useState(100);
+  const [mealTime, setMealTime] = useState<FoodLog["meal_time"]>("Breakfast");
+  const [loading, setLoading] = useState(false);
+
+  const handleSearch = async (term: string) => {
+    setSearchTerm(term);
+    if (term.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      // Using Open Food Facts API
+      const res = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${term}&search_simple=1&action=process&json=1&page_size=10`);
+      const data = await res.json();
+      
+      if (data.products) {
+        const formattedResults: Food[] = data.products
+          .filter((p: any) => p.product_name && p.nutriments && p.nutriments['energy-kcal_100g'])
+          .map((p: any) => ({
+            food_name: p.product_name,
+            calories_per_100g: p.nutriments['energy-kcal_100g'] || 0,
+            protein_per_100g: p.nutriments.proteins_100g || 0,
+            carbs_per_100g: p.nutriments.carbohydrates_100g || 0,
+            fats_per_100g: p.nutriments.fat_100g || 0,
+            source: 'db' // Representing it as 'db' for our backend logic
+          }));
+        setSearchResults(formattedResults);
+      }
+    } catch (error) {
+      console.error("Search failed:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLog = async () => {
+    if (!selectedFood) return;
+    setLoading(true);
+    try {
+      await fetch("http://localhost:3001/api/log/food", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ food: selectedFood, quantity_grams: quantity, meal_time: mealTime }),
+      });
+      onLogSuccess();
+    } catch (error) {
+      console.error("Failed to log food:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="p-6 border-b">
+          <h3 className="text-xl text-black font-semibold">Log Food Item</h3>
+        </div>
+        <div className="p-6 space-y-4">
+          {!selectedFood ? (
+            <>
+              <input
+                type="text"
+                placeholder="Search for a food..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full text-black px-4 py-2 border rounded-lg"
+              />
+              {loading && <p>Searching...</p>}
+              <div className="max-h-60 overflow-y-auto">
+                {searchResults.map((food, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setSelectedFood(food)}
+                    className="p-3 hover:bg-gray-100 cursor-pointer rounded-lg"
+                  >
+                    <p className="font-medium text-black">{food.food_name}</p>
+                    <p className="text-sm text-black">
+                      {food.calories_per_100g} kcal per 100g
+                      {food.source === 'ai' && <span className="text-teal-600 ml-2">(AI Data)</span>}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div>
+              <h4 className="text-lg text-black font-medium mb-2">{selectedFood.food_name}</h4>
+              <div className="space-y-4 text-black">
+                <div className="flex items-center gap-4">
+                  <label className="w-28">Quantity (grams)</label>
+                  <input
+                    type="number"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Number(e.target.value))}
+                    className="w-24 px-3 py-1 border rounded-lg"
+                  />
+                </div>
+                <div className="flex items-center gap-4">
+                  <label className="w-28">Meal Time</label>
+                  <select
+                    value={mealTime}
+                    onChange={(e) => setMealTime(e.target.value as FoodLog["meal_time"])}
+                    className="w-36 px-3 py-1 border rounded-lg"
+                  >
+                    <option>Breakfast</option>
+                    <option>Lunch</option>
+                    <option>Dinner</option>
+                    <option>Snack</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-black mt-4">
+                Est. Calories: {((selectedFood.calories_per_100g * quantity) / 100).toFixed(0)}
+              </p>
+              <div className="text-sm text-black mt-2">
+                <p>Protein: {((selectedFood.protein_per_100g * quantity) / 100).toFixed(1)}g</p>
+                <p>Carbs: {((selectedFood.carbs_per_100g * quantity) / 100).toFixed(1)}g</p>
+                <p>Fats: {((selectedFood.fats_per_100g * quantity) / 100).toFixed(1)}g</p>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="p-6 border-t flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 text-black rounded-lg border">Cancel</button>
+          <button
+            onClick={handleLog}
+            disabled={!selectedFood || loading}
+            className="px-4 py-2 rounded-lg bg-teal-600 text-black disabled:bg-gray-400"
+          >
+            {loading ? "Logging..." : "Log Item"}
+          </button>
         </div>
       </div>
     </div>
   );
+}
+
+// --- Exercise Modal Component ---
+function LogExerciseModal({ onClose, onLogSuccess }: { onClose: () => void; onLogSuccess: () => void }) {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [searchResults, setSearchResults] = useState<Exercise[]>([]);
+    const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+    const [duration, setDuration] = useState(30);
+    const [loading, setLoading] = useState(false);
+  
+    const handleSearch = async (term: string) => {
+      setSearchTerm(term);
+      if (term.length < 2) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await fetch(`http://localhost:3001/api/log/search-exercise?q=${term}`, { credentials: "include" });
+        const data = await res.json();
+        if (data.success) {
+          setSearchResults(data.results);
+        }
+      } catch (error) {
+        console.error("Search failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    const handleLog = async () => {
+      if (!selectedExercise) return;
+      setLoading(true);
+      try {
+        await fetch("http://localhost:3001/api/log/exercise", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ exercise: selectedExercise, duration_minutes: duration }),
+        });
+        onLogSuccess();
+      } catch (error) {
+        console.error("Failed to log exercise:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+          <div className="p-6 border-b">
+            <h3 className="text-xl text-black font-semibold">Log Exercise</h3>
+          </div>
+          <div className="p-6 space-y-4">
+            {!selectedExercise ? (
+              <>
+                <input
+                  type="text"
+                  placeholder="Search for an exercise..."
+                  value={searchTerm}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full px-4 py-2 text-black border rounded-lg"
+                />
+                {loading && <p>Searching...</p>}
+                <div className="max-h-60 overflow-y-auto">
+                  {searchResults.map((ex, i) => (
+                    <div
+                      key={i}
+                      onClick={() => setSelectedExercise(ex)}
+                      className="p-3 hover:bg-gray-100 text-black cursor-pointer rounded-lg"
+                    >
+                      <p className="font-medium text-black">{ex.exercise_name}</p>
+                      <p className="text-sm text-black">
+                        {ex.calories_burned_per_minute} kcal per minute
+                        {ex.source === 'ai' && <span className="text-teal-600 ml-2">(AI Data)</span>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div>
+                <h4 className="text-lg font-medium mb-2">{selectedExercise.exercise_name}</h4>
+                <div className="flex text-black items-center gap-4">
+                  <label>Duration (minutes)</label>
+                  <input
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(Number(e.target.value))}
+                    className="w-24 px-3 py-1 border rounded-lg"
+                  />
+                </div>
+                <p className="text-black mt-2">
+                  Est. Calories Burned: {(selectedExercise.calories_burned_per_minute * duration).toFixed(0)}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="p-6 border-t flex justify-end gap-3">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg border">Cancel</button>
+            <button
+              onClick={handleLog}
+              disabled={!selectedExercise || loading}
+              className="px-4 py-2 rounded-lg bg-teal-600 text-black disabled:bg-gray-400"
+            >
+              {loading ? "Logging..." : "Log Exercise"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
 }

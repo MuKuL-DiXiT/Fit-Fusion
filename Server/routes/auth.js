@@ -9,7 +9,6 @@ const {
   updateProfile
 } = require('../controllers/authController');
 
-// Input validation middleware
 const validateSignup = (req, res, next) => {
   const { username, email, password } = req.body;
   
@@ -31,6 +30,13 @@ const validateSignup = (req, res, next) => {
     return res.status(400).json({
       success: false,
       message: 'Password must be at least 6 characters long'
+    });
+  }
+  // Disallow spaces in passwords
+  if (password.includes(' ')) {
+    return res.status(400).json({
+      success: false,
+      message: 'Password must not contain spaces'
     });
   }
   
@@ -57,16 +63,13 @@ const validateLogin = (req, res, next) => {
   next();
 };
 
-// Public routes (no authentication required)
 router.post('/signup', validateSignup, signup);
 router.post('/login', validateLogin, login);
 
-// Protected routes (authentication required)
 router.post('/logout', authenticateToken, logout);
 router.get('/profile', authenticateToken, getProfile);
 router.put('/profile', authenticateToken, updateProfile);
 
-// Check auth status route (useful for frontend)
 router.get('/check', authenticateToken, (req, res) => {
   res.status(200).json({
     success: true,
@@ -74,12 +77,12 @@ router.get('/check', authenticateToken, (req, res) => {
     user: {
       userId: req.user.userId,
       username: req.user.username,
-      email: req.user.email
+      email: req.user.email,
+      role: req.user.role
     }
   });
 });
 
-// Health check route
 router.get('/health', (req, res) => {
   res.status(200).json({
     success: true,

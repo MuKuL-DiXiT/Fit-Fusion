@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const { pool } = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
 
 // Get user's food logs
@@ -104,6 +104,59 @@ const addFoodLog = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to add food log'
+    });
+  }
+};
+
+// Add or upsert food suggestions (from AI) into food table
+const addFoodSuggestions = async (req, res) => {
+  try {
+    const { foods } = req.body;
+
+    if (!foods || !Array.isArray(foods)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Foods array is required'
+      });
+    }
+
+    const inserted = [];
+    for (const f of foods) {
+      const name = (f.food_name || f.name || '').trim();
+      if (!name) continue;
+
+      let foodResult = await pool.query(
+        'SELECT * FROM Food WHERE LOWER(food_name) = LOWER($1)',
+        [name]
+      );
+
+      if (foodResult.rows.length === 0) {
+        const newFood = await pool.query(
+          `INSERT INTO Food (food_name, calories_per_100g, protein_per_100g, carbs_per_100g, fats_per_100g) 
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [
+            name,
+            f.calories_per_100g || f.calories || 100,
+            f.protein_per_100g || f.protein || 0,
+            f.carbs_per_100g || f.carbs || 0,
+            f.fats_per_100g || f.fat || 0
+          ]
+        );
+        inserted.push(newFood.rows[0]);
+      } else {
+        inserted.push(foodResult.rows[0]);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      data: inserted
+    });
+  } catch (error) {
+    console.error('Add food suggestions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to add food suggestions'
     });
   }
 };
@@ -332,5 +385,6 @@ module.exports = {
   addExerciseLog,
   getDailySummary,
   deleteFoodLog,
-  deleteExerciseLog
+  deleteExerciseLog,
+  addFoodSuggestions
 };

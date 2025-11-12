@@ -20,6 +20,7 @@ interface SignupData {
   username: string;
   email: string;
   password: string;
+  role?: string;
   phone_number?: string;
   address?: string;
 }
@@ -30,10 +31,10 @@ interface LoginData {
 }
 
 class AuthService {
-  private async makeRequest(
+  private async makeRequest<T = unknown>(
     endpoint: string,
     options: RequestInit = {}
-  ): Promise<any> {
+  ): Promise<T> {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         credentials: "include",
@@ -47,10 +48,11 @@ class AuthService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Request failed");
+        const msg = data && typeof data === 'object' && 'message' in (data as Record<string, unknown>) ? String((data as Record<string, unknown>).message) : 'Request failed';
+        throw new Error(msg);
       }
 
-      return data;
+      return data as T;
     } catch (error) {
       console.error("API request failed:", error);
       throw error;

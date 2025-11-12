@@ -3,129 +3,76 @@ const router = express.Router();
 const { pool } = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
 
-// Get all products with filtering and pagination
+// Create a new product (for suppliers)
+router.post('/', authenticateToken, async (req, res) => {
+  try {
+    const { product_name, description, price, stock_quantity, category_id } = req.body;
+    const userId = req.user.userId;
+
+    // Validate required fields
+    if (!product_name || !price || !category_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product name, price, and category are required'
+      });
+    }
+
+    // Get supplier_id from user
+    const supplierQuery = await pool.query(
+      'SELECT supplier_id FROM suppliers WHERE email = (SELECT email FROM users WHERE user_id = $1)',
+      [userId]
+    );
+
+    if (supplierQuery.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only suppliers can add products'
+      });
+    }
+
+    const supplier_id = supplierQuery.rows[0].supplier_id;
+
+    // Insert product
+    const result = await pool.query(
+      `INSERT INTO products (product_name, description, price, stock_quantity, category_id, supplier_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [product_name, description || null, price, stock_quantity || 0, category_id, supplier_id]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Product added successfully',
+      product: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Error adding product:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error adding product'
+    });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
-    const { 
-      category, 
-      search, 
-      sortBy = 'created_at', 
-      sortOrder = 'DESC',
-      page = 1,
-      limit = 20,
-      minPrice,
-      maxPrice
-    } = req.query;
-
-    let query = `
-      SELECT p.*, c.category_name, s.supplier_name,
+    const query = `
+      SELECT p.product_id, p.product_name, p.description, p.price, 
+             p.stock_quantity, p.category_id,
+             c.category_name,
              COALESCE(AVG(r.rating), 0) as avg_rating,
              COUNT(r.review_id) as review_count
       FROM products p
       LEFT JOIN categories c ON p.category_id = c.category_id
-      LEFT JOIN suppliers s ON p.supplier_id = s.supplier_id
       LEFT JOIN reviews r ON p.product_id = r.product_id
-      WHERE 1=1
+      GROUP BY p.product_id, c.category_name
+      ORDER BY p.product_name;
     `;
-    
-    const queryParams = [];
-    let paramCount = 1;
-
-    // Add filters
-    if (category) {
-      query += ` AND c.category_name ILIKE $${paramCount}`;
-      queryParams.push(`%${category}%`);
-      paramCount++;
-    }
-
-    if (search) {
-      query += ` AND (p.product_name ILIKE $${paramCount} OR p.description ILIKE $${paramCount})`;
-      queryParams.push(`%${search}%`);
-      paramCount++;
-    }
-
-    if (minPrice) {
-      query += ` AND p.price >= $${paramCount}`;
-      queryParams.push(minPrice);
-      paramCount++;
-    }
-
-    if (maxPrice) {
-      query += ` AND p.price <= $${paramCount}`;
-      queryParams.push(maxPrice);
-      paramCount++;
-    }
-
-    // Add GROUP BY
-    query += ` GROUP BY p.product_id, c.category_name, s.supplier_name`;
-
-    // Add sorting
-    const validSortFields = ['product_name', 'price', 'created_at', 'avg_rating'];
-    const validSortOrders = ['ASC', 'DESC'];
-    
-    if (validSortFields.includes(sortBy) && validSortOrders.includes(sortOrder.toUpperCase())) {
-      if (sortBy === 'avg_rating') {
-        query += ` ORDER BY avg_rating ${sortOrder.toUpperCase()}`;
-      } else {
-        query += ` ORDER BY p.${sortBy} ${sortOrder.toUpperCase()}`;
-      }
-    }
-
-    // Add pagination
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
-    queryParams.push(parseInt(limit), offset);
-
-    const result = await pool.query(query, queryParams);
-
-    // Get total count for pagination
-    let countQuery = `
-      SELECT COUNT(DISTINCT p.product_id) as total
-      FROM products p
-      LEFT JOIN categories c ON p.category_id = c.category_id
-      WHERE 1=1
-    `;
-    
-    const countParams = [];
-    let countParamCount = 1;
-
-    if (category) {
-      countQuery += ` AND c.category_name ILIKE $${countParamCount}`;
-      countParams.push(`%${category}%`);
-      countParamCount++;
-    }
-
-    if (search) {
-      countQuery += ` AND (p.product_name ILIKE $${countParamCount} OR p.description ILIKE $${countParamCount})`;
-      countParams.push(`%${search}%`);
-      countParamCount++;
-    }
-
-    if (minPrice) {
-      countQuery += ` AND p.price >= $${countParamCount}`;
-      countParams.push(minPrice);
-      countParamCount++;
-    }
-
-    if (maxPrice) {
-      countQuery += ` AND p.price <= $${countParamCount}`;
-      countParams.push(maxPrice);
-      countParamCount++;
-    }
-
-    const countResult = await pool.query(countQuery, countParams);
-    const totalProducts = parseInt(countResult.rows[0].total);
-    const totalPages = Math.ceil(totalProducts / parseInt(limit));
+    const result = await pool.query(query);
 
     res.json({
       success: true,
-      products: result.rows,
-      pagination: {
-        currentPage: parseInt(page),
-        totalPages,
-        totalProducts,
-        limit: parseInt(limit)
-      }
+      products: result.rows
     });
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -136,7 +83,47 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get single product by ID
+// Get products that belong to the authenticated supplier
+router.get('/supplier/mine', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Determine supplier_id from the authenticated user
+    const supplierQuery = await pool.query(
+      'SELECT supplier_id FROM suppliers WHERE email = (SELECT email FROM users WHERE user_id = $1)',
+      [userId]
+    );
+
+    if (supplierQuery.rows.length === 0) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only suppliers can view their products'
+      });
+    }
+
+    const supplierId = supplierQuery.rows[0].supplier_id;
+
+    const productsQuery = `
+      SELECT p.product_id, p.product_name, p.stock_quantity, p.price
+      FROM products p
+      WHERE p.supplier_id = $1
+      ORDER BY p.product_name
+    `;
+    const result = await pool.query(productsQuery, [supplierId]);
+
+    res.json({
+      success: true,
+      products: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching supplier products:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching supplier products'
+    });
+  }
+});
+
 router.get('/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -162,7 +149,6 @@ router.get('/:productId', async (req, res) => {
       });
     }
 
-    // Get recent reviews
     const reviewsQuery = `
       SELECT r.*, u.username
       FROM reviews r
@@ -188,7 +174,6 @@ router.get('/:productId', async (req, res) => {
   }
 });
 
-// Get all categories
 router.get('/categories/list', async (req, res) => {
   try {
     const result = await pool.query(
@@ -208,14 +193,12 @@ router.get('/categories/list', async (req, res) => {
   }
 });
 
-// Add product review (authenticated users only)
 router.post('/:productId/reviews', authenticateToken, async (req, res) => {
   try {
     const { productId } = req.params;
     const { rating, comment } = req.body;
     const userId = req.user.userId;
 
-    // Validate rating
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({
         success: false,
@@ -223,7 +206,6 @@ router.post('/:productId/reviews', authenticateToken, async (req, res) => {
       });
     }
 
-    // Check if product exists
     const productCheck = await pool.query(
       'SELECT product_id FROM products WHERE product_id = $1',
       [productId]
@@ -236,7 +218,6 @@ router.post('/:productId/reviews', authenticateToken, async (req, res) => {
       });
     }
 
-    // Check if user already reviewed this product
     const existingReview = await pool.query(
       'SELECT review_id FROM reviews WHERE user_id = $1 AND product_id = $2',
       [userId, productId]
@@ -249,7 +230,6 @@ router.post('/:productId/reviews', authenticateToken, async (req, res) => {
       });
     }
 
-    // Insert review
     const result = await pool.query(
       `INSERT INTO reviews (user_id, product_id, rating, comment)
        VALUES ($1, $2, $3, $4)
