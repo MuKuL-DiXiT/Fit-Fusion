@@ -104,6 +104,64 @@ router.get("/:planId", authenticateToken, async (req, res) => {
   }
 });
 
+router.post("/manual", authenticateToken, async (req, res) => {
+  const { planName, startDate, endDate, days } = req.body;
+  const userId = req.user.userId;
+
+  if (!planName || !startDate || !endDate || !days || !Array.isArray(days)) {
+    return res.status(400).json({ success: false, message: "Missing required fields." });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // 1. Insert the main diet plan
+    const planQuery = `
+      INSERT INTO diet_plans (user_id, plan_name, start_date, end_date)
+      VALUES ($1, $2, $3, $4)
+      RETURNING plan_id;
+    `;
+    const planValues = [userId, planName, startDate, endDate];
+    const planResult = await client.query(planQuery, planValues);
+    const planId = planResult.rows[0].plan_id;
+
+    // 2. Insert all the diet plan items (associate with plan)
+    // Note: schema expects (plan_id, food_id, product_id, meal_time, quantity, calories)
+    for (const day of days) {
+      for (const meal of day.meals) {
+        for (const item of meal.items) {
+          const itemQuery = `
+            INSERT INTO diet_plan_items (plan_id, food_id, product_id, meal_time, quantity, calories)
+            VALUES ($1, $2, $3, $4, $5, $6);
+          `;
+          const calories = (item.food.calories_per_100g * item.quantity) / 100;
+          const itemValues = [
+            planId,
+            item.food ? item.food.food_id : null,
+            null,
+            meal.meal_time,
+            item.quantity,
+            calories,
+          ];
+          await client.query(itemQuery, itemValues);
+        }
+      }
+    }
+
+    await client.query("COMMIT");
+    res.status(201).json({ success: true, message: "Diet plan saved successfully!", planId });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error saving manual diet plan:", error);
+    res.status(500).json({ success: false, message: "An error occurred while saving the plan." });
+  } finally {
+    client.release();
+  }
+});
+
+
 router.post("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;

@@ -9,6 +9,7 @@ export interface DietPlan {
   created_at: string;
   item_count?: number;
   total_calories?: number;
+  is_ai_generated?: boolean;
 }
 
 export interface DietPlanItem {

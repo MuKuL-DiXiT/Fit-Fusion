@@ -164,7 +164,7 @@ CREATE TABLE food_log (
     log_id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(user_id) ON DELETE CASCADE,
     food_id INT REFERENCES food(food_id) ON DELETE CASCADE,
-    meal_time meal_time NOT NULL,
+    meal_time TIMESTAMP NOT NULL,
     quantity_grams NUMERIC(6,2) NOT NULL,
     total_calories NUMERIC(6,2) NOT NULL,
     log_date TIMESTAMP DEFAULT now()
